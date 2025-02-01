@@ -24,6 +24,7 @@ pub fn initialize_python() -> pyo3::PyResult<()> {
     // Once we've set the configuration we need, we can go on and manually
     // initialize PyO3.
     pyo3::prepare_freethreaded_python();
+    println!("Python is prepared!");
     // Now add cwd to python path
     Python::with_gil::<_, PyResult<_>>(|py| {
         let path = py.import("sys")?.getattr("path")?;
