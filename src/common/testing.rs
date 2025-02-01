@@ -1,14 +1,14 @@
 #[cfg(test)]
 pub fn initialize_python() -> pyo3::PyResult<()> {
-    use libc::wchar_t;
-    use pyo3::prelude::*;
-    use which;
+    // use libc::wchar_t;
+    // use pyo3::prelude::*;
+    // use which;
     use widestring;
     // Due to https://github.com/ContinuumIO/anaconda-issues/issues/11439,
     // we first need to set PYTHONHOME. To do so, we will look for whatever
     // directory on PATH currently has python.exe.
-    let python_exe = which::which("python").unwrap();
-    let python_home = python_exe.parent().unwrap();
+    // let python_exe = which::which("python").unwrap();
+    // let python_home = python_exe.parent().unwrap();
     // The Python C API uses null-terminated UTF-16 strings, so we need to
     // encode the path into that format here.
     // We could use the Windows FFI modules provided in the standard library,
@@ -24,6 +24,15 @@ pub fn initialize_python() -> pyo3::PyResult<()> {
     // Once we've set the configuration we need, we can go on and manually
     // initialize PyO3.
     pyo3::prepare_freethreaded_python();
+    unsafe {
+        println!(
+            "Python home: {}",
+            widestring::WideCString::from_ptr_str(
+                pyo3::ffi::Py_GetPythonHome() as *const widestring::WideChar
+            )
+            .display()
+        );
+    }
     // println!("Python is prepared!");
     // // Now add cwd to python path
     // Python::with_gil::<_, PyResult<_>>(|py| {
