@@ -54,12 +54,12 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python-3.8 --interpreter python-3.9 --interpreter python-3.10 --interpreter python-3.11 --interpreter python-3.12
+          args: --release --out dist --interpreter python-3.8 --interpreter python-3.9 --interpreter python-3.10 --interpreter python-3.11 --interpreter python-3.12 --features cdylib
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
@@ -91,12 +91,12 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python-3.8 --interpreter python-3.9 --interpreter python-3.10 --interpreter python-3.11 --interpreter python-3.12
+          args: --release --out dist --interpreter python-3.8 --interpreter python-3.9 --interpreter python-3.10 --interpreter python-3.11 --interpreter python-3.12 --features cdylib
           sccache: 'true'
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -123,12 +123,12 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python
+          args: --release --out dist --interpreter python --features cdylib
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -153,12 +153,12 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python
+          args: --release --out dist --interpreter python --features cdylib
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4

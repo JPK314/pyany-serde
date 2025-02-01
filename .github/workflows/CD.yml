@@ -53,7 +53,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -90,7 +90,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -122,7 +122,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -152,7 +152,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+        run: cargo nextest run --workspace --all-targets
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
