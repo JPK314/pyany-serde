@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 description = "Serialization and deserialization for Python objects"
 license="Apache-2.0"
+exclude = [
+    ".github"
+]
 
 [lib]
 name = "pyany_serde"
@@ -15,7 +18,6 @@ inherits = "release"
 
 
 [dependencies]
-anyhow = "1.0.89"
 bytemuck = "1.17.0"
 byteorder = "1.5.0"
 dyn-clone = "1.0.17"
@@ -28,11 +30,6 @@ paste = "1.0.15"
 pyo3 = { version = "0.23.4", features = ["py-clone"] }
 raw_sync = "0.1.5"
 shared_memory = "0.12.4"
-
-[dev-dependencies]
-libc = "0.2.169"
-which = "6.0.3"
-widestring = "1.1.0"
 
 [features]
 extension-module = ["pyo3/extension-module"]
