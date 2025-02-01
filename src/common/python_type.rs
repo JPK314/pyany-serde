@@ -197,12 +197,11 @@ pub fn detect_python_type<'py>(v: &Bound<'py, PyAny>) -> PyResult<PythonType> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::testing::*;
     use pyo3::{ffi::c_str, PyResult, Python};
 
     #[test]
     fn test_detect_python_dtype() -> PyResult<()> {
-        initialize_python()?;
+        pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
             let locals = PyDict::new(py);
             py.run(
