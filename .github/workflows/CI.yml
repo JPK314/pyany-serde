@@ -125,7 +125,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r test_requirements.txt
       - name: 'Build and test without Python on all targets'
-        run: cargo nextest run --workspace --all-targets --no-default-features -E not test(/\bpython_/)
+        run: cargo nextest run --workspace --all-targets --no-default-features -E 'not test(/\bpython_/)'
       - name: 'Build and test with Python on host'
         run: cargo nextest run --workspace --no-default-features -E 'test(/\bpython_/) and platform(host)'
       - name: Build wheels
