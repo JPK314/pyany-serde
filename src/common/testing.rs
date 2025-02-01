@@ -26,11 +26,12 @@ pub fn initialize_python() -> pyo3::PyResult<()> {
     pyo3::prepare_freethreaded_python();
     // Now add cwd to python path
     Python::with_gil::<_, PyResult<_>>(|py| {
-        Ok(py
-            .import("sys")?
-            .getattr("path")?
-            .call_method1("insert", (0, std::env::current_dir()?.to_str().unwrap()))?
-            .unbind())
+        let path = py.import("sys")?.getattr("path")?;
+        println!("Path before insert: {}", path.repr()?.to_str()?);
+        path.call_method1("insert", (0, std::env::current_dir()?.to_str().unwrap()))?;
+        println!("Path after insert: {}", path.repr()?.to_str()?);
+        Ok(())
     })?;
+    println!("Completed Python initialization!");
     Ok(())
 }
