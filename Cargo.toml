@@ -1,17 +1,17 @@
 [package]
 name = "pyany-serde"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Serialization and deserialization for Python objects"
 license="Apache-2.0"
+build = "build.rs"
 exclude = [
     ".github"
 ]
 
 [lib]
 name = "pyany_serde"
-# "cdylib" is necessary to produce a shared library for Python to import from.
-crate-type = ["cdylib"]
+crate-type = ["lib", "cdylib"]
 
 [profile.test]
 inherits = "release"
@@ -32,5 +32,6 @@ raw_sync = "0.1.5"
 shared_memory = "0.12.4"
 
 [features]
-extension-module = ["pyo3/extension-module"]
-default = ["extension-module"]
+default = ["lib"]
+lib = []
+cdylib = []
