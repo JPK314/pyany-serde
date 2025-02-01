@@ -10,7 +10,7 @@ pub mod pyany_serde_type;
 
 #[pymodule]
 #[pyo3(name = "pyany_serde")]
-fn rlgym_learn_backend(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn define_pyany_serde_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // m.add_function(wrap_pyfunction!(env_process::env_process, m)?)?;
     m.add_class::<dyn_pyany_serde_factory::DynPyAnySerdeFactory>()?;
     m.add_class::<dyn_pyany_serde::DynPyAnySerde>()?;
