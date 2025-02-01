@@ -1,5 +1,6 @@
 #[cfg(test)]
 pub fn initialize_python() -> pyo3::PyResult<()> {
+    use libc::wchar_t;
     use pyo3::prelude::*;
     use which;
     use widestring;
@@ -16,7 +17,7 @@ pub fn initialize_python() -> pyo3::PyResult<()> {
         pyo3::ffi::Py_SetPythonHome(
             widestring::WideCString::from_str(python_home.to_str().unwrap())
                 .unwrap()
-                .as_ptr(),
+                .as_ptr() as *const wchar_t,
         );
     }
     // Once we've set the configuration we need, we can go on and manually
