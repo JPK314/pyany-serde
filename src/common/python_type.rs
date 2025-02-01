@@ -200,7 +200,7 @@ mod tests {
     use pyo3::{ffi::c_str, PyResult, Python};
 
     #[test]
-    fn test_detect_python_dtype() -> PyResult<()> {
+    fn python_test_detect_python_type_numpy() -> PyResult<()> {
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
             let locals = PyDict::new(py);

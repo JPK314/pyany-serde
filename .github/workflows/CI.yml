@@ -53,8 +53,6 @@ jobs:
           python-version: 3.x
           cache: 'pip'
       - run: pip install -r test_requirements.txt
-      - run: echo $PYTHONHOME
-      - run: echo $PYTHONPATH
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets --no-default-features
       - name: Build wheels
@@ -92,8 +90,6 @@ jobs:
           python-version: 3.x
           cache: 'pip'
       - run: pip install -r test_requirements.txt
-      - run: echo $PYTHONHOME
-      - run: echo $PYTHONPATH
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets --no-default-features
       - name: Build wheels
@@ -116,6 +112,8 @@ jobs:
         platform:
           - runner: windows-latest
             target: x64
+          - runner: windows-latest
+            target: x86
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -126,8 +124,10 @@ jobs:
           architecture: ${{ matrix.platform.target }}
           cache: 'pip'
       - run: pip install -r test_requirements.txt
-      - name: 'Build and test'
-        run: cargo nextest run --workspace --all-targets --no-default-features
+      - name: 'Build and test without Python on all targets'
+        run: cargo nextest run --workspace --all-targets --no-default-features -E not test(/\bpython_/)
+      - name: 'Build and test with Python on host'
+        run: cargo nextest run --workspace --no-default-features -E 'test(/\bpython_/) and platform(host)'
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -156,8 +156,6 @@ jobs:
           python-version: 3.x
           cache: 'pip'
       - run: pip install -r test_requirements.txt
-      - run: echo $PYTHONHOME
-      - run: echo $PYTHONPATH
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets --no-default-features
       - name: Build wheels
