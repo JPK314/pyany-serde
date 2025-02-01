@@ -13,26 +13,26 @@ pub fn initialize_python() -> pyo3::PyResult<()> {
     // encode the path into that format here.
     // We could use the Windows FFI modules provided in the standard library,
     // but we want this to work cross-platform, so we do things more manually.
-    println!("Detected python home: {}", python_home.to_str().unwrap());
-    unsafe {
-        pyo3::ffi::Py_SetPythonHome(
-            widestring::WideCString::from_str(python_home.to_str().unwrap())
-                .unwrap()
-                .as_ptr() as *const wchar_t,
-        );
-    }
+    // println!("Detected python home: {}", python_home.to_str().unwrap());
+    // unsafe {
+    //     pyo3::ffi::Py_SetPythonHome(
+    //         widestring::WideCString::from_str(python_home.to_str().unwrap())
+    //             .unwrap()
+    //             .as_ptr() as *const wchar_t,
+    //     );
+    // }
     // Once we've set the configuration we need, we can go on and manually
     // initialize PyO3.
     pyo3::prepare_freethreaded_python();
-    println!("Python is prepared!");
-    // Now add cwd to python path
-    Python::with_gil::<_, PyResult<_>>(|py| {
-        let path = py.import("sys")?.getattr("path")?;
-        println!("Path before insert: {}", path.repr()?.to_str()?);
-        path.call_method1("insert", (0, std::env::current_dir()?.to_str().unwrap()))?;
-        println!("Path after insert: {}", path.repr()?.to_str()?);
-        Ok(())
-    })?;
-    println!("Completed Python initialization!");
+    // println!("Python is prepared!");
+    // // Now add cwd to python path
+    // Python::with_gil::<_, PyResult<_>>(|py| {
+    //     let path = py.import("sys")?.getattr("path")?;
+    //     println!("Path before insert: {}", path.repr()?.to_str()?);
+    //     path.call_method1("insert", (0, std::env::current_dir()?.to_str().unwrap()))?;
+    //     println!("Path after insert: {}", path.repr()?.to_str()?);
+    //     Ok(())
+    // })?;
+    // println!("Completed Python initialization!");
     Ok(())
 }
