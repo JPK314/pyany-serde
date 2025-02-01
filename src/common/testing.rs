@@ -13,6 +13,7 @@ pub fn initialize_python() -> pyo3::PyResult<()> {
     // encode the path into that format here.
     // We could use the Windows FFI modules provided in the standard library,
     // but we want this to work cross-platform, so we do things more manually.
+    println!("Detected python home: {}", python_home.to_str().unwrap());
     unsafe {
         pyo3::ffi::Py_SetPythonHome(
             widestring::WideCString::from_str(python_home.to_str().unwrap())
