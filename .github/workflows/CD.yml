@@ -111,18 +111,14 @@ jobs:
         platform:
           - runner: windows-latest
             target: x64
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
       - uses: actions/setup-python@v5
         with:
-          python-version: |
-            3.8
-            3.9
-            3.10
-            3.11
-            3.12
+          python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.platform.target }}
           cache: 'pip'
       - run: pip install -r test_requirements.txt
@@ -132,12 +128,12 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --interpreter python-3.8 --interpreter python-3.9 --interpreter python-3.10 --interpreter python-3.11 --interpreter python-3.12 --features cdylib
+          args: --release --out dist --interpreter python --features cdylib
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows-${{ matrix.platform.target }}
+          name: wheels-windows-${{ matrix.platform.target }}-${{ matrix.python-version }}
           path: dist
 
   macos:
