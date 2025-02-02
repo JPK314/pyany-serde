@@ -1,2 +1,4 @@
 /target
 /.vscode
+*.pyd
+*/*/__pycache__

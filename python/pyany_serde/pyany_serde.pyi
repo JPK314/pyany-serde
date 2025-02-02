@@ -29,7 +29,7 @@ PythonTypes = TypeVarTuple("PythonTypes")
 
 class DynPyAnySerde(Generic[PythonType]): ...
 
-class PyAnySerdeFactory:
+class DynPyAnySerdeFactory:
     @staticmethod
     def bool_serde() -> DynPyAnySerde[bool]: ...
     @staticmethod
