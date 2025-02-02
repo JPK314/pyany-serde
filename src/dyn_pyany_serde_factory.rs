@@ -110,10 +110,10 @@ impl DynPyAnySerdeFactory {
     }
     #[staticmethod]
     pub fn typed_dict_serde(
-        serde_kv_list: Vec<(Py<PyString>, Option<DynPyAnySerde>)>,
+        serde_dict: Vec<(Py<PyString>, Option<DynPyAnySerde>)>,
     ) -> PyResult<DynPyAnySerde> {
         Ok(DynPyAnySerde(Some(Box::new(TypedDictSerde::new(
-            serde_kv_list
+            serde_dict
                 .into_iter()
                 .map(|(key, dyn_serde_option)| {
                     (key, dyn_serde_option.map(|dyn_serde| dyn_serde.0.unwrap()))

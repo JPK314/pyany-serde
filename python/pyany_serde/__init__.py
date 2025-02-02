@@ -1,4 +1,4 @@
-from .pyany_serde import PyAnySerdeFactory
+from .pyany_serde import DynPyAnySerde, PyAnySerdeFactory
 from .pyany_serde_factory import (
     bool_serde,
     bytes_serde,
