@@ -58,7 +58,7 @@ macro_rules! append_n_vec_elements {
     ($buf: ident, $offset: expr, $vec: ident, $n: expr) => {{
         let mut offset = $offset;
         for idx in 0..$n {
-            offset = crate::communication::append_f32($buf, offset, $vec[idx]);
+            offset = pyany_serde::communication::append_f32($buf, offset, $vec[idx]);
         }
         offset
     }};
@@ -71,7 +71,7 @@ macro_rules! retrieve_n_vec_elements {
         let mut val;
         let mut vec = Vec::with_capacity($n);
         for _ in 0..$n {
-            (val, offset) = crate::communication::retrieve_f32($buf, offset).unwrap();
+            (val, offset) = pyany_serde::communication::retrieve_f32($buf, offset).unwrap();
             vec.push(val);
         }
         (vec, offset)
@@ -83,12 +83,12 @@ macro_rules! append_n_vec_elements_option {
     ($buf: ident, $offset: expr, $vec_option: ident, $n: expr) => {{
         let mut offset = $offset;
         if let Some(vec) = $vec_option {
-            offset = crate::communication::append_bool($buf, offset, true);
+            offset = pyany_serde::communication::append_bool($buf, offset, true);
             for idx in 0..$n {
-                offset = crate::communication::append_f32($buf, offset, vec[idx]);
+                offset = pyany_serde::communication::append_f32($buf, offset, vec[idx]);
             }
         } else {
-            offset = crate::communication::append_bool($buf, offset, false)
+            offset = pyany_serde::communication::append_bool($buf, offset, false)
         }
         offset
     }};
@@ -99,12 +99,12 @@ macro_rules! retrieve_n_vec_elements_option {
     ($buf: ident, $offset: expr, $n: expr) => {{
         let mut offset = $offset;
         let is_some;
-        (is_some, offset) = crate::communication::retrieve_bool($buf, offset).unwrap();
+        (is_some, offset) = pyany_serde::communication::retrieve_bool($buf, offset).unwrap();
         if is_some {
             let mut val;
             let mut vec = Vec::with_capacity($n);
             for _ in 0..$n {
-                (val, offset) = crate::communication::retrieve_f32($buf, offset).unwrap();
+                (val, offset) = pyany_serde::communication::retrieve_f32($buf, offset).unwrap();
                 vec.push(val);
             }
             (Some(vec), offset)

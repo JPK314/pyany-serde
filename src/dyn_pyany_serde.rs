@@ -1,11 +1,11 @@
+use pyo3::prelude::*;
+
 #[cfg(feature = "cdylib")]
 use crate::pyany_serde_type::retrieve_pyany_serde_type;
-#[cfg(feature = "cdylib")]
-use pyo3::prelude::*;
 
 use crate::pyany_serde::PyAnySerde;
 
-#[cfg_attr(feature = "cdylib", pyclass(module = "pyany_serde", unsendable))]
+#[pyclass(module = "pyany_serde", unsendable)]
 #[derive(Clone)]
 pub struct DynPyAnySerde(pub Option<Box<dyn PyAnySerde>>);
 
