@@ -118,7 +118,12 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: actions/setup-python@v5
         with:
-          python-version: 3.x
+          python-version: |
+            3.8
+            3.9
+            3.10
+            3.11
+            3.12
           architecture: ${{ matrix.platform.target }}
           cache: 'pip'
       - run: pip install -r test_requirements.txt
