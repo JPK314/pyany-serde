@@ -1,26 +1,8 @@
-from abc import abstractmethod
-from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from numpy import dtype
 
-T = TypeVar("T")
-
-class PythonSerde(Generic[T]):
-    @abstractmethod
-    def to_bytes(self, obj: T) -> bytes:
-        """
-        Function to convert obj to bytes, for passing between batched agent and the agent manager.
-        :return: bytes b such that from_bytes(b) == obj.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def from_bytes(self, byts: bytes) -> T:
-        """
-        Function to convert bytes to T, for passing between batched agent and the agent manager.
-        :return: T obj such that from_bytes(to_bytes(obj)) == obj.
-        """
-        raise NotImplementedError
+from .python_serde import PythonSerde
 
 class DynPyAnySerde: ...
 
