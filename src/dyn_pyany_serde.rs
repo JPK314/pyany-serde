@@ -1,8 +1,7 @@
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::impl_::pyclass::LazyTypeObject;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyCapsule, PyString};
+use pyo3::types::{PyCapsule, PyString, PyType};
 
 use crate::pyany_serde::PyAnySerde;
 use crate::pyany_serde_type::retrieve_pyany_serde_type;
@@ -42,8 +41,8 @@ unsafe impl ::pyo3::type_object::PyTypeInfo for DynPyAnySerde {
             })
             .unwrap()
             .bind(py);
-        let orig_lazy_ty_ref = unsafe { *capsule.reference::<&LazyTypeObject<DynPyAnySerde>>() };
-        orig_lazy_ty_ref.get_or_init(py).as_type_ptr()
+        let orig_py_type_ref = unsafe { capsule.reference::<Py<PyType>>() };
+        orig_py_type_ref.bind(py).as_type_ptr()
     }
 }
 impl ::pyo3::PyClass for DynPyAnySerde {
@@ -160,7 +159,10 @@ impl DynPyAnySerde {
     }
     #[staticmethod]
     fn __get_lazy_type_object__(py: Python) -> PyResult<Bound<pyo3::types::PyCapsule>> {
-        let lazy_ty = <Self as pyo3::impl_::pyclass::PyClassImpl>::lazy_type_object();
-        pyo3::types::PyCapsule::new(py, lazy_ty, None)
+        let py_type = <Self as pyo3::impl_::pyclass::PyClassImpl>::lazy_type_object()
+            .get_or_init(py)
+            .clone()
+            .unbind();
+        pyo3::types::PyCapsule::new(py, py_type, None)
     }
 }
