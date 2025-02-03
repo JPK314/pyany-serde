@@ -3,12 +3,17 @@ use pyo3::prelude::*;
 
 pub mod common;
 pub mod communication;
-pub mod dyn_pyany_serde;
 #[cfg(feature = "cdylib")]
 pub mod dyn_pyany_serde_factory;
-pub mod pyany_serde;
 pub mod pyany_serde_impl;
-pub mod pyany_serde_type;
+
+mod dyn_pyany_serde;
+mod pyany_serde;
+mod pyany_serde_type;
+
+pub use dyn_pyany_serde::DynPyAnySerde;
+pub use pyany_serde::PyAnySerde;
+pub use pyany_serde_type::{retrieve_pyany_serde_type, PyAnySerdeType};
 
 #[cfg(feature = "cdylib")]
 #[cfg_attr(feature = "cdylib", pymodule)]

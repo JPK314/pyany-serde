@@ -4,21 +4,11 @@ use pyo3::prelude::*;
 use dyn_clone::{clone_trait_object, DynClone};
 use pyo3::types::PyString;
 
-use crate::pyany_serde_impl::bool_serde::BoolSerde;
-use crate::pyany_serde_impl::bytes_serde::BytesSerde;
-use crate::pyany_serde_impl::complex_serde::ComplexSerde;
-use crate::pyany_serde_impl::dict_serde::DictSerde;
-use crate::pyany_serde_impl::dynamic_serde::DynamicSerde;
-use crate::pyany_serde_impl::float_serde::FloatSerde;
-use crate::pyany_serde_impl::int_serde::IntSerde;
-use crate::pyany_serde_impl::list_serde::ListSerde;
-use crate::pyany_serde_impl::numpy_dynamic_shape_serde::get_numpy_dynamic_shape_serde;
-use crate::pyany_serde_impl::option_serde::OptionSerde;
-use crate::pyany_serde_impl::pickle_serde::PickleSerde;
-use crate::pyany_serde_impl::set_serde::SetSerde;
-use crate::pyany_serde_impl::string_serde::StringSerde;
-use crate::pyany_serde_impl::tuple_serde::TupleSerde;
-use crate::pyany_serde_impl::typed_dict_serde::TypedDictSerde;
+use crate::pyany_serde_impl::{
+    get_numpy_dynamic_shape_serde, BoolSerde, BytesSerde, ComplexSerde, DictSerde, DynamicSerde,
+    FloatSerde, IntSerde, ListSerde, OptionSerde, PickleSerde, SetSerde, StringSerde, TupleSerde,
+    TypedDictSerde,
+};
 use crate::pyany_serde_type::PyAnySerdeType;
 
 pub trait PyAnySerde: DynClone {

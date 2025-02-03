@@ -6,8 +6,7 @@ use numpy::{ndarray::ArrayD, Element, PyArrayDyn, PyArrayMethods, PyUntypedArray
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::prelude::*;
 
-use crate::common::align::get_bytes_to_alignment;
-use crate::common::numpy_dtype_enum::NumpyDtype;
+use crate::common::{get_bytes_to_alignment, NumpyDtype};
 use crate::communication::{append_bytes, append_usize, retrieve_bytes, retrieve_usize};
 use crate::pyany_serde::PyAnySerde;
 

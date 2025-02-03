@@ -4,8 +4,7 @@ use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
-use crate::common::numpy_dtype_enum::NumpyDtype;
-use crate::common::python_type::{detect_python_type, PythonType};
+use crate::common::{detect_python_type, NumpyDtype, PythonType};
 
 // This enum is used to store information about a type which is sent between processes to dynamically recover a Box<dyn PyAnySerde>
 #[derive(Debug, PartialEq, Clone)]
@@ -274,7 +273,7 @@ pub fn retrieve_pyany_serde_type(buf: &[u8], offset: usize) -> PyResult<(PyAnySe
 mod tests {
     use pyo3::PyResult;
 
-    use crate::common::numpy_dtype_enum::NumpyDtype;
+    use crate::common::NumpyDtype;
 
     use super::*;
 

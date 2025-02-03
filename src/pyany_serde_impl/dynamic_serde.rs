@@ -1,9 +1,8 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
-use crate::common::numpy_dtype_enum::NumpyDtype;
-use crate::common::python_type::{
-    detect_python_type, get_python_type_byte, retrieve_python_type, PythonType,
+use crate::common::{
+    detect_python_type, get_python_type_byte, retrieve_python_type, NumpyDtype, PythonType,
 };
 use crate::communication::{append_usize, retrieve_usize};
 use crate::pyany_serde::PyAnySerde;
