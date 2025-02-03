@@ -146,7 +146,6 @@ impl DynPyAnySerde {
 #[allow(non_snake_case)]
 impl DynPyAnySerde {}
 
-#[cfg(feature = "cdylib")]
 #[pymethods]
 impl DynPyAnySerde {
     #[new]
