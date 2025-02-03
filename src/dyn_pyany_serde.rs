@@ -4,10 +4,8 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyCapsule, PyString};
 
-#[cfg(feature = "cdylib")]
-use crate::pyany_serde_type::retrieve_pyany_serde_type;
-
 use crate::pyany_serde::PyAnySerde;
+use crate::pyany_serde_type::retrieve_pyany_serde_type;
 
 // Recursive expansion of pyclass macro with modifications to PyTypeInfo trait
 // =====================================
