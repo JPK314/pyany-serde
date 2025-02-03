@@ -15,6 +15,7 @@ pub struct BoolSerde {
 
 impl BoolSerde {
     pub fn new() -> Self {
+        println!("entered BoolSerde new");
         BoolSerde {
             serde_enum: PyAnySerdeType::BOOLEAN,
             serde_enum_bytes: PyAnySerdeType::BOOLEAN.serialize(),

@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "pyany-serde"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "bytemuck",
  "byteorder",

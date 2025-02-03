@@ -19,30 +19,37 @@ unsafe impl Send for DynPyAnySerdeCapsule {}
 
 unsafe impl Sync for DynPyAnySerdeCapsule {}
 
+static CAPSULE: DynPyAnySerdeCapsule = DynPyAnySerdeCapsule(GILOnceCell::new());
+
 impl ::pyo3::types::DerefToPyAny for DynPyAnySerde {}
 
 unsafe impl ::pyo3::type_object::PyTypeInfo for DynPyAnySerde {
     const NAME: &'static str = "DynPyAnySerde";
     const MODULE: ::std::option::Option<&'static str> = ::core::option::Option::Some("pyany_serde");
-    #[inline]
-    fn type_object_raw(py: ::pyo3::Python<'_>) -> *mut ::pyo3::ffi::PyTypeObject {
-        static CAPSULE: DynPyAnySerdeCapsule = DynPyAnySerdeCapsule(GILOnceCell::new());
 
+    fn type_object_raw(py: ::pyo3::Python<'_>) -> *mut ::pyo3::ffi::PyTypeObject {
+        println!("Entered type_object_raw");
         let capsule = CAPSULE
             .0
             .get_or_try_init::<_, PyErr>(py, || {
                 let py_module = py.import(PyString::new(py, "pyany_serde")).unwrap();
                 let py_ty = py_module.getattr("DynPyAnySerde")?;
                 let binding = py_ty
-                    .getattr("__get_lazy_type_object__")
+                    .getattr("__get_type_object__")
                     .map_err(|err| PyRuntimeError::new_err(format!("{err}")))?
                     .call0()?;
                 Ok(binding.downcast_into::<PyCapsule>()?.unbind())
             })
             .unwrap()
             .bind(py);
+        println!("Retrieved capsule");
         let orig_py_type_ref = unsafe { capsule.reference::<Py<PyType>>() };
-        orig_py_type_ref.bind(py).as_type_ptr()
+        println!("Retrieved py type ref");
+        let v = orig_py_type_ref.bind(py);
+        println!("Bound py type ref");
+        let v = v.as_type_ptr();
+        println!("Got type ptr, returning");
+        v
     }
 }
 impl ::pyo3::PyClass for DynPyAnySerde {
@@ -158,11 +165,15 @@ impl DynPyAnySerde {
         Ok(())
     }
     #[staticmethod]
-    fn __get_lazy_type_object__(py: Python) -> PyResult<Bound<pyo3::types::PyCapsule>> {
+    fn __get_type_object__(py: Python) -> PyResult<Bound<pyo3::types::PyCapsule>> {
+        println!("Entered __get_type_object__");
         let py_type = <Self as pyo3::impl_::pyclass::PyClassImpl>::lazy_type_object()
             .get_or_init(py)
             .clone()
             .unbind();
-        pyo3::types::PyCapsule::new(py, py_type, None)
+        println!("Got py_type");
+        let v = pyo3::types::PyCapsule::new(py, py_type, None);
+        println!("Created PyCapsule, returning");
+        v
     }
 }
