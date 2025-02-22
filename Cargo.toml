@@ -4,14 +4,13 @@ version = "0.2.0"
 edition = "2021"
 description = "Serialization and deserialization for Python objects"
 license="Apache-2.0"
-build = "build.rs"
 exclude = [
     ".github"
 ]
 
 [lib]
 name = "pyany_serde"
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib"]
 
 [profile.test]
 inherits = "release"
@@ -33,9 +32,3 @@ raw_sync = "0.1.5"
 shared_memory = "0.12.4"
 strum = "0.27.1"
 strum_macros = "0.27.1"
-
-[features]
-default = ["lib"]
-lib = []
-cdylib = ["extension-module"]
-extension-module = ["pyo3/extension-module"]

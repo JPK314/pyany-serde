@@ -120,21 +120,6 @@ jobs:
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets
 
-  sdist:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args: --out dist
-      - name: Upload sdist
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-sdist
-          path: dist
-
   crates_io_publish:
     name: Publish (crates.io)
     needs: [audit, linux, musllinux, windows, macos, sdist]
