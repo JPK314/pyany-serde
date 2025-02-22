@@ -6,39 +6,20 @@ use numpy::{ndarray::ArrayD, Element, PyArrayDyn, PyArrayMethods, PyUntypedArray
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::prelude::*;
 
-use crate::common::{get_bytes_to_alignment, NumpyDtype};
-use crate::communication::{append_bytes, append_usize, retrieve_bytes, retrieve_usize};
-use crate::pyany_serde::PyAnySerde;
-
-use crate::pyany_serde_type::PyAnySerdeType;
+use crate::{
+    common::{get_bytes_to_alignment, NumpyDtype},
+    communication::{append_bytes, append_usize, retrieve_bytes, retrieve_usize},
+    PyAnySerde,
+};
 
 #[derive(Clone)]
 pub struct NumpyDynamicShapeSerde<T: Element> {
-    dtype: PhantomData<T>,
-    serde_enum: PyAnySerdeType,
-    serde_enum_bytes: Vec<u8>,
-}
-
-macro_rules! define_primitive_impls {
-    ($($t:ty => $dtype:expr),* $(,)?) => {
-        $(
-            impl NumpyDynamicShapeSerde<$t> {
-                pub fn new() -> Self {
-                    let serde_enum = PyAnySerdeType::NUMPY { dtype: $dtype };
-                    Self {
-                        dtype: PhantomData,
-                        serde_enum_bytes: serde_enum.serialize(),
-                        serde_enum,
-                    }
-                }
-            }
-        )*
-    }
+    pub dtype: PhantomData<T>,
 }
 
 impl<T: Element + AnyBitPattern + NoUninit> NumpyDynamicShapeSerde<T> {
-    pub fn append<'py>(
-        &mut self,
+    pub fn append_inner<'py>(
+        &self,
         buf: &mut [u8],
         offset: usize,
         array: &Bound<'py, PyArrayDyn<T>>,
@@ -54,8 +35,8 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpyDynamicShapeSerde<T> {
         Ok(offset)
     }
 
-    pub fn retrieve<'py>(
-        &mut self,
+    pub fn retrieve_inner<'py>(
+        &self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
@@ -81,59 +62,38 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpyDynamicShapeSerde<T> {
     }
 }
 
-define_primitive_impls! {
-    i8 => NumpyDtype::INT8,
-    i16 => NumpyDtype::INT16,
-    i32 => NumpyDtype::INT32,
-    i64 => NumpyDtype::INT64,
-    u8 => NumpyDtype::UINT8,
-    u16 => NumpyDtype::UINT16,
-    u32 => NumpyDtype::UINT32,
-    u64 => NumpyDtype::UINT64,
-    f32 => NumpyDtype::FLOAT32,
-    f64 => NumpyDtype::FLOAT64,
-}
-
 pub fn get_numpy_dynamic_shape_serde(dtype: NumpyDtype) -> Box<dyn PyAnySerde> {
     match dtype {
-        NumpyDtype::INT8 => Box::new(NumpyDynamicShapeSerde::<i8>::new()),
-        NumpyDtype::INT16 => Box::new(NumpyDynamicShapeSerde::<i16>::new()),
-        NumpyDtype::INT32 => Box::new(NumpyDynamicShapeSerde::<i32>::new()),
-        NumpyDtype::INT64 => Box::new(NumpyDynamicShapeSerde::<i64>::new()),
-        NumpyDtype::UINT8 => Box::new(NumpyDynamicShapeSerde::<u8>::new()),
-        NumpyDtype::UINT16 => Box::new(NumpyDynamicShapeSerde::<u16>::new()),
-        NumpyDtype::UINT32 => Box::new(NumpyDynamicShapeSerde::<u32>::new()),
-        NumpyDtype::UINT64 => Box::new(NumpyDynamicShapeSerde::<u64>::new()),
-        NumpyDtype::FLOAT32 => Box::new(NumpyDynamicShapeSerde::<f32>::new()),
-        NumpyDtype::FLOAT64 => Box::new(NumpyDynamicShapeSerde::<f64>::new()),
+        NumpyDtype::INT8 => Box::new(NumpyDynamicShapeSerde::<i8> { dtype: PhantomData }),
+        NumpyDtype::INT16 => Box::new(NumpyDynamicShapeSerde::<i16> { dtype: PhantomData }),
+        NumpyDtype::INT32 => Box::new(NumpyDynamicShapeSerde::<i32> { dtype: PhantomData }),
+        NumpyDtype::INT64 => Box::new(NumpyDynamicShapeSerde::<i64> { dtype: PhantomData }),
+        NumpyDtype::UINT8 => Box::new(NumpyDynamicShapeSerde::<u8> { dtype: PhantomData }),
+        NumpyDtype::UINT16 => Box::new(NumpyDynamicShapeSerde::<u16> { dtype: PhantomData }),
+        NumpyDtype::UINT32 => Box::new(NumpyDynamicShapeSerde::<u32> { dtype: PhantomData }),
+        NumpyDtype::UINT64 => Box::new(NumpyDynamicShapeSerde::<u64> { dtype: PhantomData }),
+        NumpyDtype::FLOAT32 => Box::new(NumpyDynamicShapeSerde::<f32> { dtype: PhantomData }),
+        NumpyDtype::FLOAT64 => Box::new(NumpyDynamicShapeSerde::<f64> { dtype: PhantomData }),
     }
 }
 
 impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpyDynamicShapeSerde<T> {
     fn append<'py>(
-        &mut self,
+        &self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        self.append(buf, offset, obj.downcast::<PyArrayDyn<T>>()?)
+        self.append_inner(buf, offset, obj.downcast::<PyArrayDyn<T>>()?)
     }
 
     fn retrieve<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
     ) -> PyResult<(Bound<'py, PyAny>, usize)> {
-        let (array, offset) = self.retrieve(py, buf, offset)?;
+        let (array, offset) = self.retrieve_inner(py, buf, offset)?;
         Ok((array.into_any(), offset))
-    }
-
-    fn get_enum(&self) -> &PyAnySerdeType {
-        &self.serde_enum
-    }
-
-    fn get_enum_bytes(&self) -> &[u8] {
-        &self.serde_enum_bytes
     }
 }

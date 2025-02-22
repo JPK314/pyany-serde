@@ -6,9 +6,6 @@ use pyo3::prelude::*;
 
 use paste::paste;
 
-use crate::pyany_serde::PyAnySerde;
-use crate::pyany_serde_type::retrieve_pyany_serde_type;
-
 macro_rules! define_primitive_communication {
     ($type:ty) => {
         paste! {
@@ -40,9 +37,9 @@ pub fn append_bool(buf: &mut [u8], offset: usize, val: bool) -> usize {
     end
 }
 
-pub fn retrieve_bool(slice: &[u8], offset: usize) -> PyResult<(bool, usize)> {
+pub fn retrieve_bool(buf: &[u8], offset: usize) -> PyResult<(bool, usize)> {
     let end = offset + size_of::<bool>();
-    let val = match u8::from_ne_bytes(slice[offset..end].try_into()?) {
+    let val = match u8::from_ne_bytes(buf[offset..end].try_into()?) {
         0 => Ok(false),
         1 => Ok(true),
         v => Err(InvalidStateError::new_err(format!(
@@ -58,7 +55,7 @@ macro_rules! append_n_vec_elements {
     ($buf: ident, $offset: expr, $vec: ident, $n: expr) => {{
         let mut offset = $offset;
         for idx in 0..$n {
-            offset = pyany_serde::communication::append_f32($buf, offset, $vec[idx]);
+            offset = $crate::communication::append_f32($buf, offset, $vec[idx]);
         }
         offset
     }};
@@ -71,7 +68,7 @@ macro_rules! retrieve_n_vec_elements {
         let mut val;
         let mut vec = Vec::with_capacity($n);
         for _ in 0..$n {
-            (val, offset) = pyany_serde::communication::retrieve_f32($buf, offset).unwrap();
+            (val, offset) = $crate::communication::retrieve_f32($buf, offset).unwrap();
             vec.push(val);
         }
         (vec, offset)
@@ -83,12 +80,12 @@ macro_rules! append_n_vec_elements_option {
     ($buf: ident, $offset: expr, $vec_option: ident, $n: expr) => {{
         let mut offset = $offset;
         if let Some(vec) = $vec_option {
-            offset = pyany_serde::communication::append_bool($buf, offset, true);
+            offset = $crate::communication::append_bool($buf, offset, true);
             for idx in 0..$n {
-                offset = pyany_serde::communication::append_f32($buf, offset, vec[idx]);
+                offset = $crate::communication::append_f32($buf, offset, vec[idx]);
             }
         } else {
-            offset = pyany_serde::communication::append_bool($buf, offset, false)
+            offset = $crate::communication::append_bool($buf, offset, false)
         }
         offset
     }};
@@ -99,12 +96,12 @@ macro_rules! retrieve_n_vec_elements_option {
     ($buf: ident, $offset: expr, $n: expr) => {{
         let mut offset = $offset;
         let is_some;
-        (is_some, offset) = pyany_serde::communication::retrieve_bool($buf, offset).unwrap();
+        (is_some, offset) = $crate::communication::retrieve_bool($buf, offset).unwrap();
         if is_some {
             let mut val;
             let mut vec = Vec::with_capacity($n);
             for _ in 0..$n {
-                (val, offset) = pyany_serde::communication::retrieve_f32($buf, offset).unwrap();
+                (val, offset) = $crate::communication::retrieve_f32($buf, offset).unwrap();
                 vec.push(val);
             }
             (Some(vec), offset)
@@ -112,6 +109,24 @@ macro_rules! retrieve_n_vec_elements_option {
             (None, offset)
         }
     }};
+}
+
+pub fn append_usize_vec(v: &mut Vec<u8>, u: usize) {
+    v.extend_from_slice(&u.to_ne_bytes());
+}
+
+pub fn append_bytes_vec(v: &mut Vec<u8>, bytes: &[u8]) {
+    append_usize_vec(v, bytes.len());
+    v.extend_from_slice(bytes);
+}
+
+pub fn append_string_vec(v: &mut Vec<u8>, s: &String) {
+    append_bytes_vec(v, s.as_bytes());
+}
+
+pub fn retrieve_string(buf: &[u8], offset: usize) -> PyResult<(String, usize)> {
+    let (string_bytes, offset) = retrieve_bytes(buf, offset)?;
+    Ok((String::from_utf8(string_bytes.to_vec())?, offset))
 }
 
 pub fn insert_bytes(buf: &mut [u8], offset: usize, bytes: &[u8]) -> PyResult<usize> {
@@ -128,91 +143,8 @@ pub fn append_bytes(buf: &mut [u8], offset: usize, bytes: &[u8]) -> PyResult<usi
     Ok(end)
 }
 
-pub fn retrieve_bytes(slice: &[u8], offset: usize) -> PyResult<(&[u8], usize)> {
-    let (len, start) = retrieve_usize(slice, offset)?;
+pub fn retrieve_bytes(buf: &[u8], offset: usize) -> PyResult<(&[u8], usize)> {
+    let (len, start) = retrieve_usize(buf, offset)?;
     let end = start + len;
-    Ok((&slice[start..end], end))
-}
-
-pub fn append_python<'py1, 'py2>(
-    buf: &mut [u8],
-    offset: usize,
-    obj: &Bound<'py1, PyAny>,
-    pyany_serde_option: &mut Option<Box<dyn PyAnySerde>>,
-) -> PyResult<usize> {
-    let mut offset = offset;
-    match pyany_serde_option {
-        Some(pyany_serde) => {
-            let serde_enum_bytes = pyany_serde.get_enum_bytes();
-            let end = offset + serde_enum_bytes.len();
-            buf[offset..end].copy_from_slice(&serde_enum_bytes[..]);
-            offset = pyany_serde.append(buf, end, &obj)?;
-        }
-        None => {
-            let mut new_pyany_serde: Box<dyn PyAnySerde> = obj.try_into()?;
-            let serde_enum_bytes = new_pyany_serde.get_enum_bytes();
-            let end = offset + serde_enum_bytes.len();
-            buf[offset..end].copy_from_slice(&serde_enum_bytes[..]);
-            offset = new_pyany_serde.append(buf, end, &obj)?;
-            *pyany_serde_option = Some(new_pyany_serde);
-        }
-    }
-    return Ok(offset);
-}
-
-pub fn append_python_option<'py>(
-    buf: &mut [u8],
-    offset: usize,
-    obj_option: &Option<&Bound<'py, PyAny>>,
-    pyany_serde_option: &mut Option<Box<dyn PyAnySerde>>,
-) -> PyResult<usize> {
-    let mut offset = offset;
-    if let Some(obj) = obj_option {
-        offset = append_bool(buf, offset, true);
-        offset = append_python(buf, offset, obj, pyany_serde_option)?;
-    } else {
-        offset = append_bool(buf, offset, false);
-    }
-    Ok(offset)
-}
-
-pub fn retrieve_python<'py1, 'py2: 'py1>(
-    py: Python<'py1>,
-    buf: &[u8],
-    offset: usize,
-    pyany_serde_option: &mut Option<Box<dyn PyAnySerde>>,
-) -> PyResult<(Bound<'py1, PyAny>, usize)> {
-    let obj;
-    let mut offset = offset;
-    match pyany_serde_option {
-        Some(pyany_serde) => {
-            offset += pyany_serde.get_enum_bytes().len();
-            (obj, offset) = pyany_serde.retrieve(py, buf, offset)?;
-        }
-        None => {
-            let serde_enum;
-            (serde_enum, offset) = retrieve_pyany_serde_type(buf, offset)?;
-            let mut new_pyany_serde: Box<dyn PyAnySerde> = serde_enum.try_into()?;
-            (obj, offset) = new_pyany_serde.retrieve(py, buf, offset)?;
-            *pyany_serde_option = Some(new_pyany_serde);
-        }
-    }
-    return Ok((obj, offset));
-}
-
-pub fn retrieve_python_option<'py1, 'py2: 'py1>(
-    py: Python<'py1>,
-    buf: &[u8],
-    offset: usize,
-    pyany_serde_option: &mut Option<Box<dyn PyAnySerde>>,
-) -> PyResult<(Option<Bound<'py1, PyAny>>, usize)> {
-    let mut offset = offset;
-    let is_some;
-    (is_some, offset) = retrieve_bool(buf, offset)?;
-    if is_some {
-        let (obj, offset) = retrieve_python(py, buf, offset, pyany_serde_option)?;
-        Ok((Some(obj), offset))
-    } else {
-        Ok((None, offset))
-    }
+    Ok((&buf[start..end], end))
 }

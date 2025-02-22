@@ -2,49 +2,19 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use crate::{
-    communication::{append_python, append_usize, retrieve_python, retrieve_usize},
-    pyany_serde::PyAnySerde,
+    communication::{append_usize, retrieve_usize},
+    PyAnySerde,
 };
-
-use crate::pyany_serde_type::PyAnySerdeType;
 
 #[derive(Clone)]
 pub struct DictSerde {
-    key_serde_option: Option<Box<dyn PyAnySerde>>,
-    value_serde_option: Option<Box<dyn PyAnySerde>>,
-    serde_enum: PyAnySerdeType,
-    serde_enum_bytes: Vec<u8>,
-}
-
-impl DictSerde {
-    pub fn new(
-        key_serde_option: Option<Box<dyn PyAnySerde>>,
-        value_serde_option: Option<Box<dyn PyAnySerde>>,
-    ) -> Self {
-        let key_serde_enum: PyAnySerdeType = match &key_serde_option {
-            Some(pyany_serde) => pyany_serde.get_enum().clone(),
-            None => PyAnySerdeType::OTHER,
-        };
-        let value_serde_enum: PyAnySerdeType = match &value_serde_option {
-            Some(pyany_serde) => pyany_serde.get_enum().clone(),
-            None => PyAnySerdeType::OTHER,
-        };
-        let serde_enum = PyAnySerdeType::DICT {
-            keys: Box::new(key_serde_enum),
-            values: Box::new(value_serde_enum),
-        };
-        DictSerde {
-            key_serde_option,
-            value_serde_option,
-            serde_enum_bytes: serde_enum.serialize(),
-            serde_enum,
-        }
-    }
+    pub keys_serde: Box<dyn PyAnySerde>,
+    pub values_serde: Box<dyn PyAnySerde>,
 }
 
 impl PyAnySerde for DictSerde {
     fn append<'py>(
-        &mut self,
+        &self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -52,14 +22,14 @@ impl PyAnySerde for DictSerde {
         let dict = obj.downcast::<PyDict>()?;
         let mut offset = append_usize(buf, offset, dict.len());
         for (key, value) in dict.iter() {
-            offset = append_python(buf, offset, &key, &mut self.key_serde_option)?;
-            offset = append_python(buf, offset, &value, &mut self.value_serde_option)?;
+            offset = self.keys_serde.append(buf, offset, &key)?;
+            offset = self.values_serde.append(buf, offset, &value)?;
         }
         Ok(offset)
     }
 
     fn retrieve<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
@@ -68,19 +38,11 @@ impl PyAnySerde for DictSerde {
         let (n_items, mut offset) = retrieve_usize(buf, offset)?;
         for _ in 0..n_items {
             let key;
-            (key, offset) = retrieve_python(py, buf, offset, &mut self.key_serde_option)?;
+            (key, offset) = self.keys_serde.retrieve(py, buf, offset)?;
             let value;
-            (value, offset) = retrieve_python(py, buf, offset, &mut self.value_serde_option)?;
+            (value, offset) = self.values_serde.retrieve(py, buf, offset)?;
             dict.set_item(key, value)?;
         }
         Ok((dict.into_any(), offset))
-    }
-
-    fn get_enum(&self) -> &PyAnySerdeType {
-        &self.serde_enum
-    }
-
-    fn get_enum_bytes(&self) -> &[u8] {
-        &self.serde_enum_bytes
     }
 }

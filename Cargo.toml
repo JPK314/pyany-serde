@@ -1,6 +1,6 @@
 [package]
 name = "pyany-serde"
-version = "0.1.10"
+version = "0.2.0"
 edition = "2021"
 description = "Serialization and deserialization for Python objects"
 license="Apache-2.0"
@@ -22,6 +22,7 @@ bytemuck = "1.17.0"
 byteorder = "1.5.0"
 dyn-clone = "1.0.17"
 fastrand = "2.2.0"
+hex = "0.4.3"
 itertools = "0.13.0"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
@@ -30,6 +31,8 @@ paste = "1.0.15"
 pyo3 = { version = "0.23.4", features = ["py-clone"] }
 raw_sync = "0.1.5"
 shared_memory = "0.12.4"
+strum = "0.27.1"
+strum_macros = "0.27.1"
 
 [features]
 default = ["lib"]

@@ -1,31 +1,19 @@
 use pyo3::types::PyBytes;
 use pyo3::{intern, prelude::*};
 
-use crate::communication::{append_bytes, retrieve_bytes};
-use crate::pyany_serde::PyAnySerde;
-
-use crate::pyany_serde_type::PyAnySerdeType;
+use crate::{
+    communication::{append_bytes, retrieve_bytes},
+    PyAnySerde,
+};
 
 #[derive(Clone)]
 pub struct PythonSerdeSerde {
-    python_serde: PyObject,
-    serde_enum: PyAnySerdeType,
-    serde_enum_bytes: Vec<u8>,
-}
-
-impl PythonSerdeSerde {
-    pub fn new(python_serde: PyObject) -> Self {
-        PythonSerdeSerde {
-            python_serde,
-            serde_enum_bytes: PyAnySerdeType::OTHER.serialize(),
-            serde_enum: PyAnySerdeType::OTHER,
-        }
-    }
+    pub python_serde: PyObject,
 }
 
 impl PyAnySerde for PythonSerdeSerde {
     fn append<'py>(
-        &mut self,
+        &self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -42,7 +30,7 @@ impl PyAnySerde for PythonSerdeSerde {
     }
 
     fn retrieve<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
@@ -53,13 +41,5 @@ impl PyAnySerde for PythonSerdeSerde {
             .bind(py)
             .call_method1(intern!(py, "from_bytes"), (PyBytes::new(py, obj_bytes),))?;
         Ok((obj, offset))
-    }
-
-    fn get_enum(&self) -> &PyAnySerdeType {
-        &self.serde_enum
-    }
-
-    fn get_enum_bytes(&self) -> &[u8] {
-        &self.serde_enum_bytes
     }
 }

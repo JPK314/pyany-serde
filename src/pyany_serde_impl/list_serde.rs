@@ -2,39 +2,18 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 
 use crate::{
-    communication::{append_python, append_usize, retrieve_python, retrieve_usize},
-    pyany_serde::PyAnySerde,
+    communication::{append_usize, retrieve_usize},
+    PyAnySerde,
 };
-
-use crate::pyany_serde_type::PyAnySerdeType;
 
 #[derive(Clone)]
 pub struct ListSerde {
-    item_serde_option: Option<Box<dyn PyAnySerde>>,
-    serde_enum: PyAnySerdeType,
-    serde_enum_bytes: Vec<u8>,
-}
-
-impl ListSerde {
-    pub fn new(item_serde_option: Option<Box<dyn PyAnySerde>>) -> Self {
-        let item_serde_enum: PyAnySerdeType = match &item_serde_option {
-            Some(pyany_serde) => pyany_serde.get_enum().clone(),
-            None => PyAnySerdeType::OTHER,
-        };
-        let serde_enum = PyAnySerdeType::LIST {
-            items: Box::new(item_serde_enum),
-        };
-        ListSerde {
-            item_serde_option,
-            serde_enum_bytes: serde_enum.serialize(),
-            serde_enum,
-        }
-    }
+    pub items_serde: Box<dyn PyAnySerde>,
 }
 
 impl PyAnySerde for ListSerde {
     fn append<'py>(
-        &mut self,
+        &self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -42,13 +21,13 @@ impl PyAnySerde for ListSerde {
         let list = obj.downcast::<PyList>()?;
         let mut offset = append_usize(buf, offset, list.len());
         for item in list.iter() {
-            offset = append_python(buf, offset, &item, &mut self.item_serde_option)?;
+            offset = self.items_serde.append(buf, offset, &item)?;
         }
         Ok(offset)
     }
 
     fn retrieve<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
@@ -56,18 +35,10 @@ impl PyAnySerde for ListSerde {
         let list = PyList::empty(py);
         let (n_items, mut offset) = retrieve_usize(buf, offset)?;
         for _ in 0..n_items {
-            let item: Bound<'_, PyAny>;
-            (item, offset) = retrieve_python(py, buf, offset, &mut self.item_serde_option)?;
+            let item;
+            (item, offset) = self.items_serde.retrieve(py, buf, offset)?;
             list.append(item)?;
         }
         Ok((list.into_any(), offset))
-    }
-
-    fn get_enum(&self) -> &PyAnySerdeType {
-        &self.serde_enum
-    }
-
-    fn get_enum_bytes(&self) -> &[u8] {
-        &self.serde_enum_bytes
     }
 }

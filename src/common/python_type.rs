@@ -12,90 +12,90 @@ use super::numpy_dtype_enum::NumpyDtype;
 #[derive(Debug, PartialEq)]
 pub enum PythonType {
     BOOL,
-    INT,
-    FLOAT,
-    COMPLEX,
-    STRING,
     BYTES,
-    NUMPY { dtype: NumpyDtype },
-    LIST,
-    SET,
-    TUPLE,
+    COMPLEX,
     DICT,
+    FLOAT,
+    INT,
+    LIST,
+    NUMPY { dtype: NumpyDtype },
     OTHER,
+    SET,
+    STRING,
+    TUPLE,
 }
 
 pub fn get_python_type_byte(python_type: &PythonType) -> u8 {
     match python_type {
         PythonType::BOOL => 0,
-        PythonType::INT => 1,
-        PythonType::FLOAT => 2,
-        PythonType::COMPLEX => 3,
-        PythonType::STRING => 4,
-        PythonType::BYTES => 5,
+        PythonType::BYTES => 1,
+        PythonType::COMPLEX => 2,
+        PythonType::DICT => 3,
+        PythonType::FLOAT => 4,
+        PythonType::INT => 5,
+        PythonType::LIST => 6,
         PythonType::NUMPY { dtype } => match dtype {
-            NumpyDtype::INT8 => 6,
-            NumpyDtype::INT16 => 7,
-            NumpyDtype::INT32 => 8,
-            NumpyDtype::INT64 => 9,
-            NumpyDtype::UINT8 => 10,
-            NumpyDtype::UINT16 => 11,
-            NumpyDtype::UINT32 => 12,
-            NumpyDtype::UINT64 => 13,
-            NumpyDtype::FLOAT32 => 14,
-            NumpyDtype::FLOAT64 => 15,
+            NumpyDtype::INT8 => 7,
+            NumpyDtype::INT16 => 8,
+            NumpyDtype::INT32 => 9,
+            NumpyDtype::INT64 => 10,
+            NumpyDtype::UINT8 => 11,
+            NumpyDtype::UINT16 => 12,
+            NumpyDtype::UINT32 => 13,
+            NumpyDtype::UINT64 => 14,
+            NumpyDtype::FLOAT32 => 15,
+            NumpyDtype::FLOAT64 => 16,
         },
-        PythonType::LIST => 16,
-        PythonType::SET => 17,
-        PythonType::TUPLE => 18,
-        PythonType::DICT => 19,
-        PythonType::OTHER => 20,
+        PythonType::OTHER => 17,
+        PythonType::SET => 18,
+        PythonType::STRING => 19,
+        PythonType::TUPLE => 20,
     }
 }
 
 pub fn retrieve_python_type(bytes: &[u8], offset: usize) -> PyResult<(PythonType, usize)> {
     let python_type = match bytes[offset] {
         0 => Ok(PythonType::BOOL),
-        1 => Ok(PythonType::INT),
-        2 => Ok(PythonType::FLOAT),
-        3 => Ok(PythonType::COMPLEX),
-        4 => Ok(PythonType::STRING),
-        5 => Ok(PythonType::BYTES),
-        6 => Ok(PythonType::NUMPY {
+        1 => Ok(PythonType::BYTES),
+        2 => Ok(PythonType::COMPLEX),
+        3 => Ok(PythonType::DICT),
+        4 => Ok(PythonType::FLOAT),
+        5 => Ok(PythonType::INT),
+        6 => Ok(PythonType::LIST),
+        7 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::INT8,
         }),
-        7 => Ok(PythonType::NUMPY {
+        8 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::INT16,
         }),
-        8 => Ok(PythonType::NUMPY {
+        9 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::INT32,
         }),
-        9 => Ok(PythonType::NUMPY {
+        10 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::INT64,
         }),
-        10 => Ok(PythonType::NUMPY {
+        11 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::UINT8,
         }),
-        11 => Ok(PythonType::NUMPY {
+        12 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::UINT16,
         }),
-        12 => Ok(PythonType::NUMPY {
+        13 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::UINT32,
         }),
-        13 => Ok(PythonType::NUMPY {
+        14 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::UINT64,
         }),
-        14 => Ok(PythonType::NUMPY {
+        15 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::FLOAT32,
         }),
-        15 => Ok(PythonType::NUMPY {
+        16 => Ok(PythonType::NUMPY {
             dtype: NumpyDtype::FLOAT64,
         }),
-        16 => Ok(PythonType::LIST),
-        17 => Ok(PythonType::SET),
-        18 => Ok(PythonType::TUPLE),
-        19 => Ok(PythonType::DICT),
-        20 => Ok(PythonType::OTHER),
+        17 => Ok(PythonType::OTHER),
+        18 => Ok(PythonType::SET),
+        19 => Ok(PythonType::STRING),
+        20 => Ok(PythonType::TUPLE),
         v => Err(InvalidStateError::new_err(format!(
             "tried to deserialize PythonType but got value {}",
             v

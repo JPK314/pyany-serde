@@ -1,21 +1,20 @@
+use std::marker::PhantomData;
+
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
-use crate::common::{
-    detect_python_type, get_python_type_byte, retrieve_python_type, NumpyDtype, PythonType,
+use crate::{
+    common::{
+        detect_python_type, get_python_type_byte, retrieve_python_type, NumpyDtype, PythonType,
+    },
+    communication::{append_usize, retrieve_usize},
+    PyAnySerde,
 };
-use crate::communication::{append_usize, retrieve_usize};
-use crate::pyany_serde::PyAnySerde;
 
-use super::bool_serde::BoolSerde;
-use super::bytes_serde::BytesSerde;
-use super::complex_serde::ComplexSerde;
-use super::float_serde::FloatSerde;
-use super::int_serde::IntSerde;
-use super::numpy_dynamic_shape_serde::NumpyDynamicShapeSerde;
-use super::pickle_serde::PickleSerde;
-use super::string_serde::StringSerde;
-use crate::pyany_serde_type::PyAnySerdeType;
+use super::{
+    BoolSerde, BytesSerde, ComplexSerde, FloatSerde, IntSerde, NumpyDynamicShapeSerde, PickleSerde,
+    StringSerde,
+};
 
 #[derive(Clone)]
 pub struct DynamicSerde {
@@ -36,29 +35,27 @@ pub struct DynamicSerde {
     numpy_u64_serde: NumpyDynamicShapeSerde<u64>,
     numpy_f32_serde: NumpyDynamicShapeSerde<f32>,
     numpy_f64_serde: NumpyDynamicShapeSerde<f64>,
-    serde_enum: PyAnySerdeType,
-    serde_enum_bytes: Vec<u8>,
 }
 
 impl DynamicSerde {
     pub fn new() -> PyResult<Self> {
         let pickle_serde = PickleSerde::new()?;
-        let int_serde = IntSerde::new();
-        let float_serde = FloatSerde::new();
-        let complex_serde = ComplexSerde::new();
-        let boolean_serde = BoolSerde::new();
-        let string_serde = StringSerde::new();
-        let bytes_serde = BytesSerde::new();
-        let numpy_i8_serde = NumpyDynamicShapeSerde::<i8>::new();
-        let numpy_i16_serde = NumpyDynamicShapeSerde::<i16>::new();
-        let numpy_i32_serde = NumpyDynamicShapeSerde::<i32>::new();
-        let numpy_i64_serde = NumpyDynamicShapeSerde::<i64>::new();
-        let numpy_u8_serde = NumpyDynamicShapeSerde::<u8>::new();
-        let numpy_u16_serde = NumpyDynamicShapeSerde::<u16>::new();
-        let numpy_u32_serde = NumpyDynamicShapeSerde::<u32>::new();
-        let numpy_u64_serde = NumpyDynamicShapeSerde::<u64>::new();
-        let numpy_f32_serde = NumpyDynamicShapeSerde::<f32>::new();
-        let numpy_f64_serde = NumpyDynamicShapeSerde::<f64>::new();
+        let int_serde = IntSerde {};
+        let float_serde = FloatSerde {};
+        let complex_serde = ComplexSerde {};
+        let boolean_serde = BoolSerde {};
+        let string_serde = StringSerde {};
+        let bytes_serde = BytesSerde {};
+        let numpy_i8_serde = NumpyDynamicShapeSerde::<i8> { dtype: PhantomData };
+        let numpy_i16_serde = NumpyDynamicShapeSerde::<i16> { dtype: PhantomData };
+        let numpy_i32_serde = NumpyDynamicShapeSerde::<i32> { dtype: PhantomData };
+        let numpy_i64_serde = NumpyDynamicShapeSerde::<i64> { dtype: PhantomData };
+        let numpy_u8_serde = NumpyDynamicShapeSerde::<u8> { dtype: PhantomData };
+        let numpy_u16_serde = NumpyDynamicShapeSerde::<u16> { dtype: PhantomData };
+        let numpy_u32_serde = NumpyDynamicShapeSerde::<u32> { dtype: PhantomData };
+        let numpy_u64_serde = NumpyDynamicShapeSerde::<u64> { dtype: PhantomData };
+        let numpy_f32_serde = NumpyDynamicShapeSerde::<f32> { dtype: PhantomData };
+        let numpy_f64_serde = NumpyDynamicShapeSerde::<f64> { dtype: PhantomData };
 
         Ok(DynamicSerde {
             pickle_serde,
@@ -78,15 +75,13 @@ impl DynamicSerde {
             numpy_u64_serde,
             numpy_f32_serde,
             numpy_f64_serde,
-            serde_enum: PyAnySerdeType::DYNAMIC,
-            serde_enum_bytes: PyAnySerdeType::DYNAMIC.serialize(),
         })
     }
 }
 
 impl PyAnySerde for DynamicSerde {
     fn append<'py>(
-        &mut self,
+        &self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -115,34 +110,34 @@ impl PyAnySerde for DynamicSerde {
             }
             PythonType::NUMPY { dtype } => match dtype {
                 NumpyDtype::INT8 => {
-                    offset = PyAnySerde::append(&mut self.numpy_i8_serde, buf, offset, obj)?;
+                    offset = self.numpy_i8_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::INT16 => {
-                    offset = PyAnySerde::append(&mut self.numpy_i16_serde, buf, offset, obj)?;
+                    offset = self.numpy_i16_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::INT32 => {
-                    offset = PyAnySerde::append(&mut self.numpy_i32_serde, buf, offset, obj)?;
+                    offset = self.numpy_i32_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::INT64 => {
-                    offset = PyAnySerde::append(&mut self.numpy_i64_serde, buf, offset, obj)?;
+                    offset = self.numpy_i64_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::UINT8 => {
-                    offset = PyAnySerde::append(&mut self.numpy_u8_serde, buf, offset, obj)?;
+                    offset = self.numpy_u8_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::UINT16 => {
-                    offset = PyAnySerde::append(&mut self.numpy_u16_serde, buf, offset, obj)?;
+                    offset = self.numpy_u16_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::UINT32 => {
-                    offset = PyAnySerde::append(&mut self.numpy_u32_serde, buf, offset, obj)?;
+                    offset = self.numpy_u32_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::UINT64 => {
-                    offset = PyAnySerde::append(&mut self.numpy_u64_serde, buf, offset, obj)?;
+                    offset = self.numpy_u64_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::FLOAT32 => {
-                    offset = PyAnySerde::append(&mut self.numpy_f32_serde, buf, offset, obj)?;
+                    offset = self.numpy_f32_serde.append(buf, offset, obj)?;
                 }
                 NumpyDtype::FLOAT64 => {
-                    offset = PyAnySerde::append(&mut self.numpy_f64_serde, buf, offset, obj)?;
+                    offset = self.numpy_f64_serde.append(buf, offset, obj)?;
                 }
             },
             PythonType::LIST => {
@@ -182,7 +177,7 @@ impl PyAnySerde for DynamicSerde {
     }
 
     fn retrieve<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
@@ -210,44 +205,34 @@ impl PyAnySerde for DynamicSerde {
             }
             PythonType::NUMPY { dtype } => match dtype {
                 NumpyDtype::INT8 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_i8_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_i8_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::INT16 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_i16_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_i16_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::INT32 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_i32_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_i32_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::INT64 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_i64_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_i64_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::UINT8 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_u8_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_u8_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::UINT16 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_u16_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_u16_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::UINT32 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_u32_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_u32_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::UINT64 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_u64_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_u64_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::FLOAT32 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_f32_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_f32_serde.retrieve(py, buf, offset)?;
                 }
                 NumpyDtype::FLOAT64 => {
-                    (obj, offset) =
-                        PyAnySerde::retrieve(&mut self.numpy_f64_serde, py, buf, offset)?;
+                    (obj, offset) = self.numpy_f64_serde.retrieve(py, buf, offset)?;
                 }
             },
             PythonType::LIST => {
@@ -301,13 +286,5 @@ impl PyAnySerde for DynamicSerde {
             }
         };
         Ok((obj, offset))
-    }
-
-    fn get_enum(&self) -> &PyAnySerdeType {
-        &self.serde_enum
-    }
-
-    fn get_enum_bytes(&self) -> &[u8] {
-        &self.serde_enum_bytes
     }
 }

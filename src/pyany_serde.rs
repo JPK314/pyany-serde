@@ -1,85 +1,228 @@
-use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::prelude::*;
-
-use dyn_clone::{clone_trait_object, DynClone};
 use pyo3::types::PyString;
 
+use dyn_clone::{clone_trait_object, DynClone};
+
+use crate::communication::{append_bool, retrieve_bool};
+// use crate::pyany_serde_impl::rocket_league::game_state_serde::GameStateSerde;
 use crate::pyany_serde_impl::{
-    get_numpy_dynamic_shape_serde, BoolSerde, BytesSerde, ComplexSerde, DictSerde, DynamicSerde,
-    FloatSerde, IntSerde, ListSerde, OptionSerde, PickleSerde, SetSerde, StringSerde, TupleSerde,
-    TypedDictSerde,
+    get_numpy_dynamic_shape_serde, BoolSerde, BytesSerde, ComplexSerde, DataclassSerde, DictSerde,
+    DynamicSerde, FloatSerde, IntSerde, ListSerde, OptionSerde, PickleSerde, PythonSerdeSerde,
+    SetSerde, StringSerde, TupleSerde, TypedDictSerde, UnionSerde,
 };
 use crate::pyany_serde_type::PyAnySerdeType;
+use crate::PickleablePyAnySerdeType;
 
 pub trait PyAnySerde: DynClone {
     fn append<'py>(
-        &mut self,
+        &self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize>;
     fn retrieve<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
     ) -> PyResult<(Bound<'py, PyAny>, usize)>;
-    fn get_enum(&self) -> &PyAnySerdeType;
-    fn get_enum_bytes(&self) -> &[u8];
+    // fn append_py_any(&self, buf: &mut [u8], offset: usize, obj: &PyObject) -> PyResult<usize>;
+    // fn retrieve_py_any(&self, buf: &[u8], offset: usize) -> PyResult<(PyObject, usize)>;
+    fn append_option<'py>(
+        &self,
+        buf: &mut [u8],
+        offset: usize,
+        obj_option: &Option<&Bound<'py, PyAny>>,
+    ) -> PyResult<usize> {
+        let mut offset = offset;
+        if let Some(obj) = obj_option {
+            offset = append_bool(buf, offset, true);
+            offset = self.append(buf, offset, obj)?;
+        } else {
+            offset = append_bool(buf, offset, false);
+        }
+        Ok(offset)
+    }
+    fn retrieve_option<'py>(
+        &self,
+        py: Python<'py>,
+        buf: &[u8],
+        offset: usize,
+    ) -> PyResult<(Option<Bound<'py, PyAny>>, usize)> {
+        let mut offset = offset;
+        let is_some;
+        (is_some, offset) = retrieve_bool(buf, offset)?;
+        if is_some {
+            let obj;
+            (obj, offset) = self.retrieve(py, buf, offset)?;
+            Ok((Some(obj), offset))
+        } else {
+            Ok((None, offset))
+        }
+    }
 }
 
 clone_trait_object!(PyAnySerde);
+
+impl<'py, 'a> TryFrom<&'a Bound<'py, PyAnySerdeType>> for Box<dyn PyAnySerde> {
+    type Error = PyErr;
+
+    fn try_from(value: &'a Bound<'py, PyAnySerdeType>) -> Result<Self, Self::Error> {
+        value.as_any().extract::<PyAnySerdeType>()?.try_into()
+    }
+}
+
+impl<'a> TryFrom<&'a Py<PyAnySerdeType>> for Box<dyn PyAnySerde> {
+    type Error = PyErr;
+
+    fn try_from(value: &'a Py<PyAnySerdeType>) -> Result<Self, Self::Error> {
+        Python::with_gil(|py| value.extract::<PyAnySerdeType>(py)?.try_into())
+    }
+}
 
 impl TryFrom<PyAnySerdeType> for Box<dyn PyAnySerde> {
     type Error = PyErr;
 
     fn try_from(value: PyAnySerdeType) -> Result<Self, Self::Error> {
-        match value {
-            PyAnySerdeType::PICKLE => Ok(Box::new(PickleSerde::new()?)),
-            PyAnySerdeType::INT => Ok(Box::new(IntSerde::new())),
-            PyAnySerdeType::FLOAT => Ok(Box::new(FloatSerde::new())),
-            PyAnySerdeType::COMPLEX => Ok(Box::new(ComplexSerde::new())),
-            PyAnySerdeType::BOOLEAN => Ok(Box::new(BoolSerde::new())),
-            PyAnySerdeType::STRING => Ok(Box::new(StringSerde::new())),
-            PyAnySerdeType::BYTES => Ok(Box::new(BytesSerde::new())),
-            PyAnySerdeType::DYNAMIC => Ok(Box::new(DynamicSerde::new()?)),
-            PyAnySerdeType::NUMPY { dtype } => Ok(get_numpy_dynamic_shape_serde(dtype)),
-            PyAnySerdeType::LIST { items } => Ok(Box::new(ListSerde::new(Some((*items).try_into()?)))),
-            PyAnySerdeType::SET { items } => Ok(Box::new(SetSerde::new(Some((*items).try_into()?)))),
-            PyAnySerdeType::TUPLE { items } => Ok(Box::new(TupleSerde::new(
-                items
-                    .into_iter()
-                    .map(|item| item.try_into().map(|pyany_serde| Some(pyany_serde)))
-                    .collect::<PyResult<_>>()?,
-            )?)),
-            PyAnySerdeType::DICT { keys, values } => Ok(Box::new(DictSerde::new(
-                Some((*keys).try_into()?),
-                Some((*values).try_into()?),
-            ))),
-            PyAnySerdeType::TYPEDDICT { kv_pairs } => Python::with_gil(|py| {
-                let serde_kv_list = kv_pairs.into_iter().map(|(key, item_serde)| {
-                    item_serde.try_into().map(|pyany_serde| (PyString::new(py, key.as_str()).unbind(), Some(pyany_serde)))
-                }).collect::<PyResult<_>>()?;
-                Ok(Box::new(TypedDictSerde::new(serde_kv_list)?) as Box<dyn PyAnySerde>)
-            }),
-            PyAnySerdeType::OPTION { value } => Ok(Box::new(OptionSerde::new(Some((*value).try_into()?)))),
-            PyAnySerdeType::OTHER => Err(InvalidStateError::new_err("Tried to deserialize an OTHER type of Serde which cannot be dynamically determined / reconstructed. Ensure the RustSerde used is passed to both the EPI and EP explicitly.")),
-        }
-    }
-}
-
-impl<'py> TryFrom<Bound<'py, PyAny>> for Box<dyn PyAnySerde> {
-    type Error = PyErr;
-
-    fn try_from(value: Bound<'py, PyAny>) -> Result<Self, Self::Error> {
         (&value).try_into()
     }
 }
 
-impl<'py, 'a> TryFrom<&'a Bound<'py, PyAny>> for Box<dyn PyAnySerde> {
+impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
     type Error = PyErr;
 
-    fn try_from(value: &'a Bound<'py, PyAny>) -> Result<Self, Self::Error> {
-        <&pyo3::Bound<'_, pyo3::PyAny> as TryInto<PyAnySerdeType>>::try_into(value)?.try_into()
+    fn try_from(value: &'a PyAnySerdeType) -> Result<Self, Self::Error> {
+        Ok(match value {
+            PyAnySerdeType::BOOL {} => Box::new(BoolSerde {}),
+            PyAnySerdeType::BYTES {} => Box::new(BytesSerde {}),
+            PyAnySerdeType::COMPLEX {} => Box::new(ComplexSerde {}),
+            PyAnySerdeType::DATACLASS {
+                clazz,
+                init_strategy,
+                field_serde_type_dict,
+            } => Python::with_gil::<_, PyResult<_>>(|py| {
+                Ok(Box::new(DataclassSerde::new(
+                    clazz.clone_ref(py),
+                    init_strategy.clone(),
+                    field_serde_type_dict
+                        .iter()
+                        .map(|(field, field_serde_type)| {
+                            field_serde_type.try_into().map(|pyany_serde| {
+                                (PyString::new(py, field.as_str()).unbind(), pyany_serde)
+                            })
+                        })
+                        .collect::<PyResult<_>>()?,
+                )?))
+            })?,
+            PyAnySerdeType::DICT {
+                keys_serde_type,
+                values_serde_type,
+            } => Python::with_gil::<_, PyResult<_>>(|py| {
+                Ok(Box::new(DictSerde {
+                    keys_serde: keys_serde_type.bind(py).try_into()?,
+                    values_serde: values_serde_type.bind(py).try_into()?,
+                }))
+            })?,
+            PyAnySerdeType::DYNAMIC {} => Box::new(DynamicSerde::new()?),
+            PyAnySerdeType::FLOAT {} => Box::new(FloatSerde {}),
+            PyAnySerdeType::INT {} => Box::new(IntSerde {}),
+            PyAnySerdeType::LIST { items_serde_type } => Box::new(ListSerde {
+                items_serde: items_serde_type.try_into()?,
+            }),
+            PyAnySerdeType::NUMPY { dtype } => get_numpy_dynamic_shape_serde(dtype.clone()),
+            PyAnySerdeType::OPTION { value_serde_type } => Box::new(OptionSerde {
+                value_serde: value_serde_type.try_into()?,
+            }),
+            PyAnySerdeType::PICKLE {} => Box::new(PickleSerde::new()?),
+            PyAnySerdeType::PYTHONSERDE { python_serde } => {
+                Python::with_gil::<_, PyResult<_>>(|py| {
+                    Ok(Box::new(PythonSerdeSerde {
+                        python_serde: python_serde.clone_ref(py),
+                    }))
+                })?
+            }
+            PyAnySerdeType::SET { items_serde_type } => Box::new(SetSerde {
+                items_serde: items_serde_type.try_into()?,
+            }),
+            PyAnySerdeType::STRING {} => Box::new(StringSerde {}),
+            PyAnySerdeType::TUPLE { item_serde_types } => Box::new(TupleSerde {
+                item_serdes: item_serde_types
+                    .into_iter()
+                    .map(|item| item.try_into())
+                    .collect::<PyResult<_>>()?,
+            }),
+            PyAnySerdeType::TYPEDDICT {
+                key_serde_type_dict,
+            } => Python::with_gil::<_, PyResult<_>>(|py| {
+                let serde_kv_list = key_serde_type_dict
+                    .into_iter()
+                    .map(|(key, item_serde_type)| {
+                        item_serde_type.try_into().map(|pyany_serde| {
+                            (PyString::new(py, key.as_str()).unbind(), pyany_serde)
+                        })
+                    })
+                    .collect::<PyResult<_>>()?;
+                Ok(Box::new(TypedDictSerde { serde_kv_list }) as Box<dyn PyAnySerde>)
+            })?,
+            PyAnySerdeType::UNION {
+                option_serde_types,
+                option_choice_fn,
+            } => Python::with_gil::<_, PyResult<_>>(|py| {
+                Ok(Box::new(UnionSerde {
+                    option_serdes: option_serde_types
+                        .into_iter()
+                        .map(|item| item.try_into())
+                        .collect::<PyResult<_>>()?,
+                    option_choice_fn: option_choice_fn.clone_ref(py),
+                }))
+            })?,
+            // PyAnySerdeType::GAMESTATE {
+            //     agent_id_serde_type,
+            // } => Box::new(GameStateSerde::new(agent_id_serde_type.try_into()?)),
+        })
+    }
+}
+
+impl<'py> FromPyObject<'py> for Box<dyn PyAnySerde> {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        ob.extract::<PyAnySerdeType>()
+            .or_else(|_| {
+                ob.extract::<PickleablePyAnySerdeType>()
+                    .map(|v| v.0.unwrap().unwrap())
+            })?
+            .try_into()
+    }
+}
+
+pub enum DynPyAnySerdeOption {
+    Some(Box<dyn PyAnySerde>),
+    None,
+}
+
+impl From<DynPyAnySerdeOption> for Option<Box<dyn PyAnySerde>> {
+    fn from(value: DynPyAnySerdeOption) -> Self {
+        match value {
+            DynPyAnySerdeOption::Some(pyany_serde) => Some(pyany_serde),
+            DynPyAnySerdeOption::None => None,
+        }
+    }
+}
+
+impl<'py> FromPyObject<'py> for DynPyAnySerdeOption {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        ob.extract::<Option<PyAnySerdeType>>()
+            .or_else(|_| {
+                ob.extract::<PickleablePyAnySerdeType>()
+                    .map(|v| v.0.unwrap())
+            })
+            .map(|pyany_serde_type_option| {
+                pyany_serde_type_option
+                    .map(|pyany_serde_type| {
+                        pyany_serde_type
+                            .try_into()
+                            .map(|pyany_serde| DynPyAnySerdeOption::Some(pyany_serde))
+                    })
+                    .unwrap_or(Ok(DynPyAnySerdeOption::None))
+            })?
     }
 }
