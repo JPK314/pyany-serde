@@ -6,6 +6,8 @@ use pyo3::prelude::*;
 
 use paste::paste;
 
+use crate::PyAnySerde;
+
 macro_rules! define_primitive_communication {
     ($type:ty) => {
         paste! {
@@ -50,67 +52,6 @@ pub fn retrieve_bool(buf: &[u8], offset: usize) -> PyResult<(bool, usize)> {
     Ok((val, end))
 }
 
-#[macro_export]
-macro_rules! append_n_vec_elements {
-    ($buf: ident, $offset: expr, $vec: ident, $n: expr) => {{
-        let mut offset = $offset;
-        for idx in 0..$n {
-            offset = $crate::communication::append_f32($buf, offset, $vec[idx]);
-        }
-        offset
-    }};
-}
-
-#[macro_export]
-macro_rules! retrieve_n_vec_elements {
-    ($buf: ident, $offset: expr, $n: expr) => {{
-        let mut offset = $offset;
-        let mut val;
-        let mut vec = Vec::with_capacity($n);
-        for _ in 0..$n {
-            (val, offset) = $crate::communication::retrieve_f32($buf, offset).unwrap();
-            vec.push(val);
-        }
-        (vec, offset)
-    }};
-}
-
-#[macro_export]
-macro_rules! append_n_vec_elements_option {
-    ($buf: ident, $offset: expr, $vec_option: ident, $n: expr) => {{
-        let mut offset = $offset;
-        if let Some(vec) = $vec_option {
-            offset = $crate::communication::append_bool($buf, offset, true);
-            for idx in 0..$n {
-                offset = $crate::communication::append_f32($buf, offset, vec[idx]);
-            }
-        } else {
-            offset = $crate::communication::append_bool($buf, offset, false)
-        }
-        offset
-    }};
-}
-
-#[macro_export]
-macro_rules! retrieve_n_vec_elements_option {
-    ($buf: ident, $offset: expr, $n: expr) => {{
-        let mut offset = $offset;
-        let is_some;
-        (is_some, offset) = $crate::communication::retrieve_bool($buf, offset).unwrap();
-        if is_some {
-            let mut val;
-            let mut vec = Vec::with_capacity($n);
-            for _ in 0..$n {
-                (val, offset) = $crate::communication::retrieve_f32($buf, offset).unwrap();
-                vec.push(val);
-            }
-            (Some(vec), offset)
-        } else {
-            (None, offset)
-        }
-    }};
-}
-
 pub fn append_usize_vec(v: &mut Vec<u8>, u: usize) {
     v.extend_from_slice(&u.to_ne_bytes());
 }
@@ -147,4 +88,67 @@ pub fn retrieve_bytes(buf: &[u8], offset: usize) -> PyResult<(&[u8], usize)> {
     let (len, start) = retrieve_usize(buf, offset)?;
     let end = start + len;
     Ok((&buf[start..end], end))
+}
+
+pub fn append_python_option_bound<'py, F>(
+    buf: &mut [u8],
+    mut offset: usize,
+    obj_option: &Option<&Bound<'py, PyAny>>,
+    serde_option: &Option<&Box<dyn PyAnySerde>>,
+    err: F,
+) -> PyResult<usize>
+where
+    F: FnOnce() -> PyErr,
+{
+    if let Some(obj) = obj_option {
+        offset = append_bool(buf, offset, true);
+        offset = serde_option.ok_or_else(err)?.append(buf, offset, obj)?;
+    } else {
+        offset = append_bool(buf, offset, false);
+    }
+    Ok(offset)
+}
+
+pub fn append_python_option<'py, F>(
+    py: Python<'py>,
+    buf: &mut [u8],
+    mut offset: usize,
+    obj_option: &Option<&PyObject>,
+    serde_option: &Option<&Box<dyn PyAnySerde>>,
+    err: F,
+) -> PyResult<usize>
+where
+    F: FnOnce() -> PyErr,
+{
+    if let Some(obj) = obj_option {
+        offset = append_bool(buf, offset, true);
+        offset = serde_option
+            .ok_or_else(err)?
+            .append(buf, offset, obj.bind(py))?;
+    } else {
+        offset = append_bool(buf, offset, false);
+    }
+    Ok(offset)
+}
+
+pub fn retrieve_python_option<'py, F>(
+    py: Python<'py>,
+    buf: &mut [u8],
+    mut offset: usize,
+    serde_option: &Option<&Box<dyn PyAnySerde>>,
+    err: F,
+) -> PyResult<(Option<Bound<'py, PyAny>>, usize)>
+where
+    F: FnOnce() -> PyErr,
+{
+    let is_some;
+    (is_some, offset) = retrieve_bool(buf, offset)?;
+    let obj_option = if is_some {
+        let obj;
+        (obj, offset) = serde_option.ok_or_else(err)?.retrieve(py, buf, offset)?;
+        Some(obj)
+    } else {
+        None
+    };
+    Ok((obj_option, offset))
 }
