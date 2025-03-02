@@ -47,7 +47,7 @@ jobs:
         with:
           python-version: 3.x
           cache: 'pip'
-      - run: pip install -r test_requirements.txt
+          cache-dependency-path: '**/test_requirements.txt'
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets
 
@@ -72,7 +72,7 @@ jobs:
         with:
           python-version: 3.x
           cache: 'pip'
-      - run: pip install -r test_requirements.txt
+          cache-dependency-path: '**/test_requirements.txt'
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets
 
@@ -93,7 +93,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.platform.target }}
           cache: 'pip'
-      - run: pip install -r test_requirements.txt
+          cache-dependency-path: '**/test_requirements.txt'
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets
 
@@ -112,6 +112,6 @@ jobs:
         with:
           python-version: 3.x
           cache: 'pip'
-      - run: pip install -r test_requirements.txt
+          cache-dependency-path: '**/test_requirements.txt'
       - name: 'Build and test'
         run: cargo nextest run --workspace --all-targets
