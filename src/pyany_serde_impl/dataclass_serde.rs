@@ -265,8 +265,8 @@ impl PyAnySerde for DataclassSerde {
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
         let mut offset = offset;
-        for (field, pyany_serde) in self.field_serde_kv_list.iter() {
-            offset = pyany_serde.append(buf, offset, &obj.getattr(field)?)?;
+        for (field, field_serde) in self.field_serde_kv_list.iter() {
+            offset = field_serde.append(buf, offset, &obj.getattr(field)?)?;
         }
         Ok(offset)
     }
@@ -279,9 +279,9 @@ impl PyAnySerde for DataclassSerde {
     ) -> PyResult<(Bound<'py, PyAny>, usize)> {
         let mut kv_list = Vec::with_capacity(self.field_serde_kv_list.len());
         let mut offset = offset;
-        for (field, pyany_serde) in self.field_serde_kv_list.iter() {
+        for (field, field_serde) in self.field_serde_kv_list.iter() {
             let field_value;
-            (field_value, offset) = pyany_serde.retrieve(py, buf, offset)?;
+            (field_value, offset) = field_serde.retrieve(py, buf, offset)?;
             kv_list.push((field.clone_ref(py).into_bound(py), field_value));
         }
         let class = self.class.bind(py);
@@ -317,5 +317,67 @@ impl PyAnySerde for DataclassSerde {
             }
         };
         Ok((obj, offset))
+    }
+
+    unsafe fn retrieve_ptr(&self, buf: &[u8], offset: usize) -> PyResult<(*mut u8, usize)> {
+        let mut v_ptr_list = Vec::with_capacity(self.field_serde_kv_list.len());
+        let mut offset = offset;
+        for (_, field_serde) in self.field_serde_kv_list.iter() {
+            let field_value_ptr;
+            (field_value_ptr, offset) = field_serde.retrieve_ptr(buf, offset)?;
+            v_ptr_list.push(field_value_ptr);
+        }
+        Ok((Box::into_raw(Box::new(v_ptr_list)) as *mut u8, offset))
+    }
+
+    unsafe fn retrieve_from_ptr<'py>(
+        &self,
+        py: Python<'py>,
+        ptr: *mut u8,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let v_ptr_list = *Box::from_raw(ptr as *mut Vec<*mut u8>);
+        let kv_list = v_ptr_list
+            .into_iter()
+            .zip(self.field_serde_kv_list.iter())
+            .map(|(v_ptr, (field, field_serde))| {
+                Ok::<_, PyErr>((
+                    field.clone_ref(py),
+                    field_serde.retrieve_from_ptr(py, v_ptr)?,
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let class = self.class.bind(py);
+        let obj = match &self.init_strategy {
+            InternalInitStrategy::ALL(py_kwargs) => {
+                let kwargs = py_kwargs.bind(py);
+                for (field, field_value) in kv_list.iter() {
+                    kwargs.set_item(field, field_value)?;
+                }
+                class.call((), Some(kwargs))?
+            }
+            InternalInitStrategy::SOME(py_kwargs, init_field_idxs) => {
+                let kwargs = py_kwargs.bind(py);
+                let (init_kv_list, other_kv_list) = kv_list
+                    .into_iter()
+                    .enumerate()
+                    .partition::<Vec<_>, _>(|(idx, _)| init_field_idxs.contains(idx));
+                for (_, (field, field_value)) in init_kv_list.iter() {
+                    kwargs.set_item(field, field_value)?;
+                }
+                let obj = class.call((), Some(kwargs))?;
+                for (_, (field, field_value)) in other_kv_list.iter() {
+                    obj.setattr(field, field_value)?;
+                }
+                obj
+            }
+            InternalInitStrategy::NONE => {
+                let obj = class.call0()?;
+                for (field, field_value) in kv_list.iter() {
+                    obj.setattr(field, field_value)?;
+                }
+                obj
+            }
+        };
+        Ok(obj)
     }
 }

@@ -36,4 +36,19 @@ impl PyAnySerde for StringSerde {
             offset,
         ))
     }
+
+    unsafe fn retrieve_ptr(&self, buf: &[u8], offset: usize) -> PyResult<(*mut u8, usize)> {
+        // println!("string retrieve_ptr, offset: {offset}");
+        let (obj_bytes, offset) = retrieve_bytes(buf, offset)?;
+        Ok((Box::into_raw(Box::new(obj_bytes)) as *mut u8, offset))
+    }
+
+    unsafe fn retrieve_from_ptr<'py>(
+        &self,
+        py: Python<'py>,
+        ptr: *mut u8,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let obj_bytes = *Box::from_raw(ptr as *mut &[u8]);
+        Ok(PyString::new(py, str::from_utf8(obj_bytes)?).into_any())
+    }
 }

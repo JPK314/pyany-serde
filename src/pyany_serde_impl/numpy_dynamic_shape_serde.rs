@@ -96,4 +96,38 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpyDynamicShapeSerd
         let (array, offset) = self.retrieve_inner(py, buf, offset)?;
         Ok((array.into_any(), offset))
     }
+
+    unsafe fn retrieve_ptr(&self, buf: &[u8], offset: usize) -> PyResult<(*mut u8, usize)> {
+        // println!("numpy retrieve_ptr");
+        let (shape_len, mut offset) = retrieve_usize(buf, offset)?;
+        let mut shape = Vec::with_capacity(shape_len);
+        for _ in 0..shape_len {
+            let dim;
+            (dim, offset) = retrieve_usize(buf, offset)?;
+            shape.push(dim);
+        }
+        offset = offset + get_bytes_to_alignment::<T>(buf.as_ptr() as usize + offset);
+        let obj_bytes;
+        (obj_bytes, offset) = retrieve_bytes(buf, offset)?;
+        let array_vec = cast_slice::<u8, T>(obj_bytes).to_vec();
+        Ok((
+            Box::into_raw(Box::new((shape, array_vec))) as *mut u8,
+            offset,
+        ))
+    }
+
+    unsafe fn retrieve_from_ptr<'py>(
+        &self,
+        py: Python<'py>,
+        ptr: *mut u8,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let (shape, array_vec) = *Box::from_raw(ptr as *mut (Vec<usize>, Vec<T>));
+        let array = ArrayD::from_shape_vec(shape, array_vec).map_err(|err| {
+            InvalidStateError::new_err(format!(
+                "Failed create Numpy array of T from shape and Vec<T>: {}",
+                err
+            ))
+        })?;
+        Ok(array.into_pyarray(py).into_any())
+    }
 }

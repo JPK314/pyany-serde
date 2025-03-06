@@ -13,7 +13,7 @@ use crate::pyany_serde_impl::{
 use crate::pyany_serde_type::PyAnySerdeType;
 use crate::PickleablePyAnySerdeType;
 
-pub trait PyAnySerde: DynClone {
+pub trait PyAnySerde: DynClone + Send {
     fn append<'py>(
         &self,
         buf: &mut [u8],
@@ -26,8 +26,12 @@ pub trait PyAnySerde: DynClone {
         buf: &[u8],
         offset: usize,
     ) -> PyResult<(Bound<'py, PyAny>, usize)>;
-    // fn append_py_any(&self, buf: &mut [u8], offset: usize, obj: &PyObject) -> PyResult<usize>;
-    // fn retrieve_py_any(&self, buf: &[u8], offset: usize) -> PyResult<(PyObject, usize)>;
+    unsafe fn retrieve_ptr(&self, buf: &[u8], offset: usize) -> PyResult<(*mut u8, usize)>;
+    unsafe fn retrieve_from_ptr<'py>(
+        &self,
+        py: Python<'py>,
+        ptr: *mut u8,
+    ) -> PyResult<Bound<'py, PyAny>>;
     fn append_option<'py>(
         &self,
         buf: &mut [u8],

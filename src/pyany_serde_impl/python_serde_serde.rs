@@ -42,4 +42,16 @@ impl PyAnySerde for PythonSerdeSerde {
             .call_method1(intern!(py, "from_bytes"), (PyBytes::new(py, obj_bytes),))?;
         Ok((obj, offset))
     }
+
+    unsafe fn retrieve_ptr(&self, buf: &[u8], offset: usize) -> PyResult<(*mut u8, usize)> {
+        todo!()
+    }
+
+    unsafe fn retrieve_from_ptr<'py>(
+        &self,
+        py: Python<'py>,
+        ptr: *mut u8,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        todo!()
+    }
 }

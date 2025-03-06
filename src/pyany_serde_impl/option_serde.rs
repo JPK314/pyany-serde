@@ -41,4 +41,16 @@ impl PyAnySerde for OptionSerde {
             Ok((PyNone::get(py).to_owned().into_any(), offset))
         }
     }
+
+    unsafe fn retrieve_ptr(&self, buf: &[u8], offset: usize) -> PyResult<(*mut u8, usize)> {
+        todo!()
+    }
+
+    unsafe fn retrieve_from_ptr<'py>(
+        &self,
+        py: Python<'py>,
+        ptr: *mut u8,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        todo!()
+    }
 }
