@@ -12,11 +12,11 @@ permissions:
 
 jobs:
   audit:
+    name: Audit
     permissions:
       contents: read
       checks: write
       security-events: write
-    name: Audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

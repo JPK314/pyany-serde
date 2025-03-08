@@ -1,6 +1,6 @@
 [package]
 name = "pyany-serde"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Serialization and deserialization for Python objects"
 license="Apache-2.0"
