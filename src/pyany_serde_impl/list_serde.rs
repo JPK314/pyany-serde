@@ -13,7 +13,7 @@ pub struct ListSerde {
 
 impl PyAnySerde for ListSerde {
     fn append<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -27,7 +27,7 @@ impl PyAnySerde for ListSerde {
     }
 
     fn retrieve<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,

@@ -34,9 +34,12 @@ define_primitive_communication!(f64);
 
 pub fn append_bool(buf: &mut [u8], offset: usize, val: bool) -> usize {
     let end = offset + size_of::<u8>();
-    let u8_bool = if val { 1_u8 } else { 0 };
-    buf[offset..end].copy_from_slice(&u8_bool.to_ne_bytes());
+    buf[offset..end].copy_from_slice(&(val as u8).to_ne_bytes());
     end
+}
+
+pub fn append_bool_vec(v: &mut Vec<u8>, val: bool) {
+    v.extend_from_slice(&(val as u8).to_ne_bytes());
 }
 
 pub fn retrieve_bool(buf: &[u8], offset: usize) -> PyResult<(bool, usize)> {
@@ -94,7 +97,7 @@ pub fn append_python_option_bound<'py, F>(
     buf: &mut [u8],
     mut offset: usize,
     obj_option: &Option<&Bound<'py, PyAny>>,
-    serde_option: &Option<&Box<dyn PyAnySerde>>,
+    serde_option: &mut Option<&mut Box<dyn PyAnySerde>>,
     err: F,
 ) -> PyResult<usize>
 where
@@ -102,7 +105,10 @@ where
 {
     if let Some(obj) = obj_option {
         offset = append_bool(buf, offset, true);
-        offset = serde_option.ok_or_else(err)?.append(buf, offset, obj)?;
+        offset = serde_option
+            .as_deref_mut()
+            .ok_or_else(err)?
+            .append(buf, offset, obj)?;
     } else {
         offset = append_bool(buf, offset, false);
     }
@@ -114,7 +120,7 @@ pub fn append_python_option<'py, F>(
     buf: &mut [u8],
     mut offset: usize,
     obj_option: &Option<&PyObject>,
-    serde_option: &Option<&Box<dyn PyAnySerde>>,
+    serde_option: &mut Option<&mut Box<dyn PyAnySerde>>,
     err: F,
 ) -> PyResult<usize>
 where
@@ -123,6 +129,7 @@ where
     if let Some(obj) = obj_option {
         offset = append_bool(buf, offset, true);
         offset = serde_option
+            .as_deref_mut()
             .ok_or_else(err)?
             .append(buf, offset, obj.bind(py))?;
     } else {
@@ -135,7 +142,7 @@ pub fn retrieve_python_option<'py, F>(
     py: Python<'py>,
     buf: &mut [u8],
     mut offset: usize,
-    serde_option: &Option<&Box<dyn PyAnySerde>>,
+    serde_option: &mut Option<&mut Box<dyn PyAnySerde>>,
     err: F,
 ) -> PyResult<(Option<Bound<'py, PyAny>>, usize)>
 where
@@ -145,7 +152,10 @@ where
     (is_some, offset) = retrieve_bool(buf, offset)?;
     let obj_option = if is_some {
         let obj;
-        (obj, offset) = serde_option.ok_or_else(err)?.retrieve(py, buf, offset)?;
+        (obj, offset) = serde_option
+            .as_deref_mut()
+            .ok_or_else(err)?
+            .retrieve(py, buf, offset)?;
         Some(obj)
     } else {
         None

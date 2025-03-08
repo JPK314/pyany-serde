@@ -10,7 +10,7 @@ pub struct BoolSerde {}
 
 impl PyAnySerde for BoolSerde {
     fn append<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -19,7 +19,7 @@ impl PyAnySerde for BoolSerde {
     }
 
     fn retrieve<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,

@@ -15,7 +15,7 @@ pub struct UnionSerde {
 
 impl PyAnySerde for UnionSerde {
     fn append<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -26,7 +26,7 @@ impl PyAnySerde for UnionSerde {
             .call1((obj,))?
             .extract::<usize>()?;
         let offset = append_usize(buf, offset, serde_idx);
-        let pyany_serde = self.option_serdes.get(serde_idx).ok_or_else(|| {
+        let pyany_serde = self.option_serdes.get_mut(serde_idx).ok_or_else(|| {
             InvalidStateError::new_err(format!(
                 "Serde choice function returned {} which is not a valid choice index",
                 serde_idx
@@ -36,13 +36,13 @@ impl PyAnySerde for UnionSerde {
     }
 
     fn retrieve<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
     ) -> PyResult<(Bound<'py, PyAny>, usize)> {
         let (serde_idx, offset) = retrieve_usize(buf, offset)?;
-        let pyany_serde = self.option_serdes.get(serde_idx).ok_or_else(|| {
+        let pyany_serde = self.option_serdes.get_mut(serde_idx).ok_or_else(|| {
             InvalidStateError::new_err(format!(
                 "Deserialized serde idx {} which is not a valid choice index",
                 serde_idx

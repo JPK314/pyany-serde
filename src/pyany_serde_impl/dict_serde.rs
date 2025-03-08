@@ -14,7 +14,7 @@ pub struct DictSerde {
 
 impl PyAnySerde for DictSerde {
     fn append<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -29,7 +29,7 @@ impl PyAnySerde for DictSerde {
     }
 
     fn retrieve<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,

@@ -6,30 +6,29 @@ use dyn_clone::{clone_trait_object, DynClone};
 use crate::communication::{append_bool, retrieve_bool};
 // use crate::pyany_serde_impl::rocket_league::game_state_serde::GameStateSerde;
 use crate::pyany_serde_impl::{
-    get_numpy_dynamic_shape_serde, BoolSerde, BytesSerde, ComplexSerde, DataclassSerde, DictSerde,
-    DynamicSerde, FloatSerde, IntSerde, ListSerde, OptionSerde, PickleSerde, PythonSerdeSerde,
-    SetSerde, StringSerde, TupleSerde, TypedDictSerde, UnionSerde,
+    get_numpy_dynamic_shape_serde, get_numpy_static_shape_serde, BoolSerde, BytesSerde,
+    ComplexSerde, DataclassSerde, DictSerde, DynamicSerde, FloatSerde, IntSerde, ListSerde,
+    OptionSerde, PickleSerde, PythonSerdeSerde, SetSerde, StringSerde, TupleSerde, TypedDictSerde,
+    UnionSerde,
 };
 use crate::pyany_serde_type::PyAnySerdeType;
 use crate::PickleablePyAnySerdeType;
 
 pub trait PyAnySerde: DynClone {
     fn append<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize>;
     fn retrieve<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
     ) -> PyResult<(Bound<'py, PyAny>, usize)>;
-    // fn append_py_any(&self, buf: &mut [u8], offset: usize, obj: &PyObject) -> PyResult<usize>;
-    // fn retrieve_py_any(&self, buf: &[u8], offset: usize) -> PyResult<(PyObject, usize)>;
     fn append_option<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj_option: &Option<&Bound<'py, PyAny>>,
@@ -44,7 +43,7 @@ pub trait PyAnySerde: DynClone {
         Ok(offset)
     }
     fn retrieve_option<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
@@ -129,7 +128,13 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             PyAnySerdeType::LIST { items_serde_type } => Box::new(ListSerde {
                 items_serde: items_serde_type.try_into()?,
             }),
-            PyAnySerdeType::NUMPY { dtype } => get_numpy_dynamic_shape_serde(dtype.clone()),
+            PyAnySerdeType::NUMPY { dtype, shape } => {
+                if let Some(shape) = shape {
+                    get_numpy_static_shape_serde(dtype.clone(), shape.clone())
+                } else {
+                    get_numpy_dynamic_shape_serde(dtype.clone())
+                }
+            }
             PyAnySerdeType::OPTION { value_serde_type } => Box::new(OptionSerde {
                 value_serde: value_serde_type.try_into()?,
             }),

@@ -13,7 +13,7 @@ pub struct PythonSerdeSerde {
 
 impl PyAnySerde for PythonSerdeSerde {
     fn append<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -30,7 +30,7 @@ impl PyAnySerde for PythonSerdeSerde {
     }
 
     fn retrieve<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,

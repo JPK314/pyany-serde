@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from enum import Enum
 from typing import (
     Any,
     Callable,
@@ -42,7 +41,7 @@ class PythonSerde(Generic[T]):
 class PickleableInitStrategy(Generic[T]):
     def __new__(cls, init_strategy: InitStrategy[T]) -> PickleableInitStrategy[T]: ...
 
-class InitStrategy(Enum, Generic[T]):
+class InitStrategy(Generic[T]):
     ALL = ...
     SOME = ...
     NONE = ...
@@ -65,7 +64,7 @@ class PickleablePyAnySerdeType(Generic[T]):
         cls, pyany_serde_type: PyAnySerdeType[T]
     ) -> PickleablePyAnySerdeType[T]: ...
 
-class PyAnySerdeType(Enum, Generic[T]):
+class PyAnySerdeType(Generic[T]):
     BOOL = PyAnySerdeType_BOOL
     BYTES = PyAnySerdeType_BYTES
     COMPLEX = PyAnySerdeType_COMPLEX
@@ -84,6 +83,8 @@ class PyAnySerdeType(Enum, Generic[T]):
     TUPLE = PyAnySerdeType_TUPLE
     TYPEDDICT = PyAnySerdeType_TYPEDDICT
     UNION = PyAnySerdeType_UNION
+
+    def as_pickleable(self): ...
 
 class PyAnySerdeType_BOOL(PyAnySerdeType[bool]):
     def __new__(cls) -> PyAnySerdeType_BOOL: ...
@@ -129,7 +130,7 @@ class PyAnySerdeType_LIST(PyAnySerdeType[List[T]]):
 
 class PyAnySerdeType_NUMPY(PyAnySerdeType[ndarray[_ShapeType, DTypeLike]]):
     def __new__(
-        cls, dtype: DTypeLike
+        cls, dtype: DTypeLike, shape: Optional[Tuple[int]] = None
     ) -> PyAnySerdeType_NUMPY[_ShapeType, DTypeLike]: ...
 
 class PyAnySerdeType_OPTION(PyAnySerdeType[Optional[T]]):

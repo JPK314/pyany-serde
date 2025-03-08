@@ -11,8 +11,8 @@ use strum_macros::Display;
 
 use crate::common::NumpyDtype;
 use crate::communication::{
-    append_bytes_vec, append_string_vec, append_usize_vec, retrieve_bytes, retrieve_string,
-    retrieve_usize,
+    append_bool_vec, append_bytes_vec, append_string_vec, append_usize_vec, retrieve_bool,
+    retrieve_bytes, retrieve_string, retrieve_usize,
 };
 use crate::pyany_serde_impl::{InitStrategy, PickleableInitStrategy};
 
@@ -115,7 +115,19 @@ impl PickleablePyAnySerdeType {
                             Ok(bytes)
                         })?
                     }
-                    PyAnySerdeType::NUMPY { dtype } => vec![9, dtype.to_u8().unwrap()],
+                    PyAnySerdeType::NUMPY { dtype, shape } => {
+                        let mut bytes = vec![9, dtype.to_u8().unwrap()];
+                        if let Some(shape) = shape {
+                            append_bool_vec(&mut bytes, true);
+                            append_usize_vec(&mut bytes, shape.len());
+                            for &dim in shape.iter() {
+                                append_usize_vec(&mut bytes, dim);
+                            }
+                        } else {
+                            append_bool_vec(&mut bytes, false);
+                        }
+                        bytes
+                    }
                     PyAnySerdeType::OPTION { value_serde_type } => {
                         let mut bytes = vec![10];
                         Python::with_gil::<_, PyResult<_>>(|py| {
@@ -306,9 +318,29 @@ impl PickleablePyAnySerdeType {
                             )?,
                         })
                     })?,
-                    9 => PyAnySerdeType::NUMPY {
-                        dtype: NumpyDtype::from_u8(buf[offset]).unwrap(),
-                    },
+                    9 => {
+                        let dtype = NumpyDtype::from_u8(buf[offset]).unwrap();
+                        offset += 1;
+                        let has_shape;
+                        (has_shape, offset) = retrieve_bool(buf, offset)?;
+                        let shape_option = if has_shape {
+                            let shape_len;
+                            (shape_len, offset) = retrieve_usize(buf, offset)?;
+                            let mut shape = Vec::with_capacity(shape_len);
+                            for _ in 0..shape_len {
+                                let dim;
+                                (dim, offset) = retrieve_usize(buf, offset)?;
+                                shape.push(dim);
+                            }
+                            Some(shape)
+                        } else {
+                            None
+                        };
+                        PyAnySerdeType::NUMPY {
+                            dtype,
+                            shape: shape_option,
+                        }
+                    }
                     10 => Python::with_gil::<_, PyResult<_>>(|py| {
                         let serde_type_bytes;
                         (serde_type_bytes, offset) = retrieve_bytes(buf, offset)?;
@@ -448,8 +480,10 @@ pub enum PyAnySerdeType {
     LIST {
         items_serde_type: Py<PyAnySerdeType>,
     },
+    #[pyo3(constructor = (dtype, shape = None))]
     NUMPY {
         dtype: NumpyDtype,
+        shape: Option<Vec<usize>>,
     },
     OPTION {
         value_serde_type: Py<PyAnySerdeType>,
@@ -570,7 +604,11 @@ fn get_before_validator_fn<'py>(
                         "dtype was provided as {dtype_string} which is not a valid dtype"
                     ))
                 })?;
-                PyAnySerdeType::NUMPY { dtype }
+                let shape_option = data.get_item("shape")?.extract::<Option<Vec<usize>>>()?;
+                PyAnySerdeType::NUMPY {
+                    dtype,
+                    shape: shape_option,
+                }
             }
             "option" => {
                 let value_serde_type_data = data.get_item("value_serde_type")?;
@@ -684,6 +722,12 @@ fn get_before_validator_fn<'py>(
 
 #[pymethods]
 impl PyAnySerdeType {
+    fn as_pickleable<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        Ok(PickleablePyAnySerdeType(Some(Some(self.clone())))
+            .into_pyobject(py)?
+            .into_any())
+    }
+
     // pydantic methods
     #[classmethod]
     fn __get_pydantic_core_schema__<'py>(
@@ -701,6 +745,8 @@ impl PyAnySerdeType {
         let typed_dict_schema = core_schema.getattr("typed_dict_schema")?;
         let list_schema = core_schema.getattr("list_schema")?;
         let dict_schema = core_schema.getattr("dict_schema")?;
+        let int_schema = core_schema.getattr("int_schema")?;
+        let nullable_schema = core_schema.getattr("nullable_schema")?;
         let typed_dict_field = core_schema.getattr("typed_dict_field")?;
 
         let pyany_serde_type_reference_schema = core_schema
@@ -790,6 +836,16 @@ impl PyAnySerdeType {
                                     .into_pyobject(py)?,
                                 )?),
                             )?,))?,
+                        )?;
+                        typed_dict_fields.set_item(
+                            "shape",
+                            typed_dict_field.call1((nullable_schema.call1((list_schema
+                                .call1((int_schema.call(
+                                    (),
+                                    Some(&PyDict::from_sequence(
+                                        &vec![("ge", 0)].into_pyobject(py)?,
+                                    )?),
+                                )?,))?,))?,))?,
                         )?;
                     }
                     "option" => {
@@ -925,8 +981,9 @@ impl PyAnySerdeType {
                     "items_serde_type",
                     items_serde_type.extract::<PyAnySerdeType>(py)?.to_json()?,
                 )?;
-            } else if let PyAnySerdeType::NUMPY { dtype } = self {
+            } else if let PyAnySerdeType::NUMPY { dtype, shape } = self {
                 data.set_item("dtype", dtype.to_string())?;
+                data.set_item("shape", shape)?;
             } else if let PyAnySerdeType::OPTION { value_serde_type } = self {
                 data.set_item(
                     "value_serde_type",

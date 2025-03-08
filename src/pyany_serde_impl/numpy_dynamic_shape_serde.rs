@@ -19,7 +19,7 @@ pub struct NumpyDynamicShapeSerde<T: Element> {
 
 impl<T: Element + AnyBitPattern + NoUninit> NumpyDynamicShapeSerde<T> {
     pub fn append_inner<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         array: &Bound<'py, PyArrayDyn<T>>,
@@ -36,7 +36,7 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpyDynamicShapeSerde<T> {
     }
 
     pub fn retrieve_inner<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
@@ -79,7 +79,7 @@ pub fn get_numpy_dynamic_shape_serde(dtype: NumpyDtype) -> Box<dyn PyAnySerde> {
 
 impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpyDynamicShapeSerde<T> {
     fn append<'py>(
-        &self,
+        &mut self,
         buf: &mut [u8],
         offset: usize,
         obj: &Bound<'py, PyAny>,
@@ -88,7 +88,7 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpyDynamicShapeSerd
     }
 
     fn retrieve<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         buf: &[u8],
         offset: usize,
