@@ -59,6 +59,30 @@ class InitStrategy_SOME(InitStrategy[T]):
 class InitStrategy_NONE(InitStrategy[T]):
     def __new__(cls) -> InitStrategy_NONE: ...
 
+class PickleableNumpySerdeConfig(Generic[T]):
+    def __new__(cls, config: NumpySerdeConfig[T]) -> PickleableNumpySerdeConfig[T]: ...
+
+class NumpySerdeConfig(Generic[T]):
+    DYNAMIC = ...
+    STATIC = ...
+
+class NumpySerdeConfig_DYNAMIC(NumpySerdeConfig[T]):
+    def __new__(
+        cls,
+        preprocessor_fn: Optional[Callable[[T], ndarray]] = None,
+        postprocessor_fn: Optional[Callable[[ndarray], T]] = None,
+    ) -> NumpySerdeConfig_DYNAMIC: ...
+
+class NumpySerdeConfig_STATIC(InitStrategy[T]):
+    def __new__(
+        cls,
+        shape: Tuple[int],
+        preprocessor_fn: Optional[Callable[[T], ndarray]] = None,
+        postprocessor_fn: Optional[Callable[[ndarray], T]] = None,
+        allocation_pool_min_size: int = 0,
+        allocation_pool_max_size: Optional[int] = None,
+    ) -> NumpySerdeConfig_STATIC: ...
+
 class PickleablePyAnySerdeType(Generic[T]):
     def __new__(
         cls, pyany_serde_type: PyAnySerdeType[T]
@@ -130,7 +154,9 @@ class PyAnySerdeType_LIST(PyAnySerdeType[List[T]]):
 
 class PyAnySerdeType_NUMPY(PyAnySerdeType[ndarray[_ShapeType, DTypeLike]]):
     def __new__(
-        cls, dtype: DTypeLike, shape: Optional[Tuple[int]] = None
+        cls,
+        dtype: DTypeLike,
+        config: Optional[NumpySerdeConfig[T]] = NumpySerdeConfig_DYNAMIC[T],
     ) -> PyAnySerdeType_NUMPY[_ShapeType, DTypeLike]: ...
 
 class PyAnySerdeType_OPTION(PyAnySerdeType[Optional[T]]):

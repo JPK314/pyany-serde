@@ -11,10 +11,12 @@ use strum_macros::Display;
 
 use crate::common::NumpyDtype;
 use crate::communication::{
-    append_bool_vec, append_bytes_vec, append_string_vec, append_usize_vec, retrieve_bool,
-    retrieve_bytes, retrieve_string, retrieve_usize,
+    append_bytes_vec, append_string_vec, append_usize_vec, retrieve_bytes, retrieve_string,
+    retrieve_usize,
 };
-use crate::pyany_serde_impl::{InitStrategy, PickleableInitStrategy};
+use crate::pyany_serde_impl::{
+    InitStrategy, NumpySerdeConfig, PickleableInitStrategy, PickleableNumpySerdeConfig,
+};
 
 // This enum is used to store information about a type which is sent between processes to dynamically recover a Box<dyn PyAnySerde>
 #[pyclass]
@@ -115,17 +117,12 @@ impl PickleablePyAnySerdeType {
                             Ok(bytes)
                         })?
                     }
-                    PyAnySerdeType::NUMPY { dtype, shape } => {
+                    PyAnySerdeType::NUMPY { dtype, config } => {
                         let mut bytes = vec![9, dtype.to_u8().unwrap()];
-                        if let Some(shape) = shape {
-                            append_bool_vec(&mut bytes, true);
-                            append_usize_vec(&mut bytes, shape.len());
-                            for &dim in shape.iter() {
-                                append_usize_vec(&mut bytes, dim);
-                            }
-                        } else {
-                            append_bool_vec(&mut bytes, false);
-                        }
+                        append_bytes_vec(
+                            &mut bytes,
+                            &PickleableNumpySerdeConfig(Some(config.clone())).__getstate__()?[..],
+                        );
                         bytes
                     }
                     PyAnySerdeType::OPTION { value_serde_type } => {
@@ -321,24 +318,14 @@ impl PickleablePyAnySerdeType {
                     9 => {
                         let dtype = NumpyDtype::from_u8(buf[offset]).unwrap();
                         offset += 1;
-                        let has_shape;
-                        (has_shape, offset) = retrieve_bool(buf, offset)?;
-                        let shape_option = if has_shape {
-                            let shape_len;
-                            (shape_len, offset) = retrieve_usize(buf, offset)?;
-                            let mut shape = Vec::with_capacity(shape_len);
-                            for _ in 0..shape_len {
-                                let dim;
-                                (dim, offset) = retrieve_usize(buf, offset)?;
-                                shape.push(dim);
-                            }
-                            Some(shape)
-                        } else {
-                            None
-                        };
+                        let numpy_serde_config_bytes;
+                        (numpy_serde_config_bytes, _) = retrieve_bytes(buf, offset)?;
+                        let mut pickleable_numpy_serde_config = PickleableNumpySerdeConfig(None);
+                        pickleable_numpy_serde_config
+                            .__setstate__(numpy_serde_config_bytes.to_vec())?;
                         PyAnySerdeType::NUMPY {
                             dtype,
-                            shape: shape_option,
+                            config: pickleable_numpy_serde_config.0.unwrap(),
                         }
                     }
                     10 => Python::with_gil::<_, PyResult<_>>(|py| {
@@ -480,10 +467,10 @@ pub enum PyAnySerdeType {
     LIST {
         items_serde_type: Py<PyAnySerdeType>,
     },
-    #[pyo3(constructor = (dtype, shape = None))]
+    #[pyo3(constructor = (dtype, config = NumpySerdeConfig::DYNAMIC { preprocessor_fn: None, postprocessor_fn: None }))]
     NUMPY {
         dtype: NumpyDtype,
-        shape: Option<Vec<usize>>,
+        config: NumpySerdeConfig,
     },
     OPTION {
         value_serde_type: Py<PyAnySerdeType>,
@@ -604,10 +591,14 @@ fn get_before_validator_fn<'py>(
                         "dtype was provided as {dtype_string} which is not a valid dtype"
                     ))
                 })?;
-                let shape_option = data.get_item("shape")?.extract::<Option<Vec<usize>>>()?;
+                let numpy_serde_config = schema_validator
+                    .call1((handler
+                        .call_method1("generate_schema", (NumpySerdeConfig::type_object(py),))?,))?
+                    .call_method1("validate_python", (data.get_item("config")?,))?
+                    .extract::<NumpySerdeConfig>()?;
                 PyAnySerdeType::NUMPY {
                     dtype,
-                    shape: shape_option,
+                    config: numpy_serde_config,
                 }
             }
             "option" => {
@@ -745,8 +736,6 @@ impl PyAnySerdeType {
         let typed_dict_schema = core_schema.getattr("typed_dict_schema")?;
         let list_schema = core_schema.getattr("list_schema")?;
         let dict_schema = core_schema.getattr("dict_schema")?;
-        let int_schema = core_schema.getattr("int_schema")?;
-        let nullable_schema = core_schema.getattr("nullable_schema")?;
         let typed_dict_field = core_schema.getattr("typed_dict_field")?;
 
         let pyany_serde_type_reference_schema = core_schema
@@ -838,14 +827,10 @@ impl PyAnySerdeType {
                             )?,))?,
                         )?;
                         typed_dict_fields.set_item(
-                            "shape",
-                            typed_dict_field.call1((nullable_schema.call1((list_schema
-                                .call1((int_schema.call(
-                                    (),
-                                    Some(&PyDict::from_sequence(
-                                        &vec![("ge", 0)].into_pyobject(py)?,
-                                    )?),
-                                )?,))?,))?,))?,
+                            "config",
+                            typed_dict_field.call1((
+                                generate_schema.call1((NumpySerdeConfig::type_object(py),))?,
+                            ))?,
                         )?;
                     }
                     "option" => {
@@ -981,9 +966,9 @@ impl PyAnySerdeType {
                     "items_serde_type",
                     items_serde_type.extract::<PyAnySerdeType>(py)?.to_json()?,
                 )?;
-            } else if let PyAnySerdeType::NUMPY { dtype, shape } = self {
+            } else if let PyAnySerdeType::NUMPY { dtype, config } = self {
                 data.set_item("dtype", dtype.to_string())?;
-                data.set_item("shape", shape)?;
+                data.set_item("config", config.to_json()?)?;
             } else if let PyAnySerdeType::OPTION { value_serde_type } = self {
                 data.set_item(
                     "value_serde_type",

@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
@@ -12,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    BoolSerde, BytesSerde, ComplexSerde, FloatSerde, IntSerde, NumpyDynamicShapeSerde, PickleSerde,
-    StringSerde,
+    BoolSerde, BytesSerde, ComplexSerde, FloatSerde, IntSerde, NumpySerde, NumpySerdeConfig,
+    PickleSerde, StringSerde,
 };
 
 #[derive(Clone)]
@@ -25,16 +23,16 @@ pub struct DynamicSerde {
     boolean_serde: BoolSerde,
     string_serde: StringSerde,
     bytes_serde: BytesSerde,
-    numpy_i8_serde: NumpyDynamicShapeSerde<i8>,
-    numpy_i16_serde: NumpyDynamicShapeSerde<i16>,
-    numpy_i32_serde: NumpyDynamicShapeSerde<i32>,
-    numpy_i64_serde: NumpyDynamicShapeSerde<i64>,
-    numpy_u8_serde: NumpyDynamicShapeSerde<u8>,
-    numpy_u16_serde: NumpyDynamicShapeSerde<u16>,
-    numpy_u32_serde: NumpyDynamicShapeSerde<u32>,
-    numpy_u64_serde: NumpyDynamicShapeSerde<u64>,
-    numpy_f32_serde: NumpyDynamicShapeSerde<f32>,
-    numpy_f64_serde: NumpyDynamicShapeSerde<f64>,
+    numpy_i8_serde: NumpySerde<i8>,
+    numpy_i16_serde: NumpySerde<i16>,
+    numpy_i32_serde: NumpySerde<i32>,
+    numpy_i64_serde: NumpySerde<i64>,
+    numpy_u8_serde: NumpySerde<u8>,
+    numpy_u16_serde: NumpySerde<u16>,
+    numpy_u32_serde: NumpySerde<u32>,
+    numpy_u64_serde: NumpySerde<u64>,
+    numpy_f32_serde: NumpySerde<f32>,
+    numpy_f64_serde: NumpySerde<f64>,
 }
 
 impl DynamicSerde {
@@ -46,16 +44,50 @@ impl DynamicSerde {
         let boolean_serde = BoolSerde {};
         let string_serde = StringSerde {};
         let bytes_serde = BytesSerde {};
-        let numpy_i8_serde = NumpyDynamicShapeSerde::<i8> { dtype: PhantomData };
-        let numpy_i16_serde = NumpyDynamicShapeSerde::<i16> { dtype: PhantomData };
-        let numpy_i32_serde = NumpyDynamicShapeSerde::<i32> { dtype: PhantomData };
-        let numpy_i64_serde = NumpyDynamicShapeSerde::<i64> { dtype: PhantomData };
-        let numpy_u8_serde = NumpyDynamicShapeSerde::<u8> { dtype: PhantomData };
-        let numpy_u16_serde = NumpyDynamicShapeSerde::<u16> { dtype: PhantomData };
-        let numpy_u32_serde = NumpyDynamicShapeSerde::<u32> { dtype: PhantomData };
-        let numpy_u64_serde = NumpyDynamicShapeSerde::<u64> { dtype: PhantomData };
-        let numpy_f32_serde = NumpyDynamicShapeSerde::<f32> { dtype: PhantomData };
-        let numpy_f64_serde = NumpyDynamicShapeSerde::<f64> { dtype: PhantomData };
+        let numpy_serde_config = NumpySerdeConfig::DYNAMIC {
+            preprocessor_fn: None,
+            postprocessor_fn: None,
+        };
+        let numpy_i8_serde = NumpySerde::<i8> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_i16_serde = NumpySerde::<i16> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_i32_serde = NumpySerde::<i32> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_i64_serde = NumpySerde::<i64> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_u8_serde = NumpySerde::<u8> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_u16_serde = NumpySerde::<u16> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_u32_serde = NumpySerde::<u32> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_u64_serde = NumpySerde::<u64> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_f32_serde = NumpySerde::<f32> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
+        let numpy_f64_serde = NumpySerde::<f64> {
+            config: numpy_serde_config.clone(),
+            allocation_pool: Vec::new(),
+        };
 
         Ok(DynamicSerde {
             pickle_serde,

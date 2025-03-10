@@ -2,4 +2,3 @@
 /.vscode
 *.pyd
 */*/__pycache__
-*/*/rocket_league
