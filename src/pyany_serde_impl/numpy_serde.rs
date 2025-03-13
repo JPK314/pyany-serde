@@ -418,20 +418,30 @@ impl NumpySerdeConfig {
                     preprocessor_fn,
                     postprocessor_fn,
                 } => {
-                    data.set_item(
-                        "preprocessor_fn_pkl",
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((preprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )?;
-                    data.set_item(
-                        "postprocessor_fn_pkl",
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((postprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )?;
+                    let preprocessor_fn_pkl = preprocessor_fn
+                        .as_ref()
+                        .map(|preprocessor_fn| {
+                            Ok::<_, PyErr>(
+                                py.import("pickle")?
+                                    .getattr("dumps")?
+                                    .call1((preprocessor_fn,))?
+                                    .call_method0("hex")?,
+                            )
+                        })
+                        .transpose()?;
+                    data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
+                    let postprocessor_fn_pkl = postprocessor_fn
+                        .as_ref()
+                        .map(|postprocessor_fn| {
+                            Ok::<_, PyErr>(
+                                py.import("pickle")?
+                                    .getattr("dumps")?
+                                    .call1((postprocessor_fn,))?
+                                    .call_method0("hex")?,
+                            )
+                        })
+                        .transpose()?;
+                    data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
                 }
                 NumpySerdeConfig::STATIC {
                     preprocessor_fn,
@@ -440,20 +450,30 @@ impl NumpySerdeConfig {
                     allocation_pool_min_size,
                     allocation_pool_max_size,
                 } => {
-                    data.set_item(
-                        "preprocessor_fn_pkl",
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((preprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )?;
-                    data.set_item(
-                        "postprocessor_fn_pkl",
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((postprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )?;
+                    let preprocessor_fn_pkl = preprocessor_fn
+                        .as_ref()
+                        .map(|preprocessor_fn| {
+                            Ok::<_, PyErr>(
+                                py.import("pickle")?
+                                    .getattr("dumps")?
+                                    .call1((preprocessor_fn,))?
+                                    .call_method0("hex")?,
+                            )
+                        })
+                        .transpose()?;
+                    data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
+                    let postprocessor_fn_pkl = postprocessor_fn
+                        .as_ref()
+                        .map(|postprocessor_fn| {
+                            Ok::<_, PyErr>(
+                                py.import("pickle")?
+                                    .getattr("dumps")?
+                                    .call1((postprocessor_fn,))?
+                                    .call_method0("hex")?,
+                            )
+                        })
+                        .transpose()?;
+                    data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
                     data.set_item("shape", shape)?;
                     data.set_item("allocation_pool_min_size", allocation_pool_min_size)?;
                     data.set_item("allocation_pool_max_size", allocation_pool_max_size)?;
