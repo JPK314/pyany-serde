@@ -11,7 +11,6 @@ mod numpy_serde;
 mod option_serde;
 mod pickle_serde;
 mod python_serde_serde;
-// pub mod rocket_league;
 mod set_serde;
 mod string_serde;
 mod tuple_serde;

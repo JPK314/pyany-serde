@@ -4,7 +4,6 @@ use pyo3::types::PyString;
 use dyn_clone::{clone_trait_object, DynClone};
 
 use crate::communication::{append_bool, retrieve_bool};
-// use crate::pyany_serde_impl::rocket_league::game_state_serde::GameStateSerde;
 use crate::pyany_serde_impl::{
     get_numpy_serde, BoolSerde, BytesSerde, ComplexSerde, DataclassSerde, DictSerde, DynamicSerde,
     FloatSerde, IntSerde, ListSerde, OptionSerde, PickleSerde, PythonSerdeSerde, SetSerde,
@@ -177,9 +176,6 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
                     option_choice_fn: option_choice_fn.clone_ref(py),
                 }))
             })?,
-            // PyAnySerdeType::GAMESTATE {
-            //     agent_id_serde_type,
-            // } => Box::new(GameStateSerde::new(agent_id_serde_type.try_into()?)),
         })
     }
 }

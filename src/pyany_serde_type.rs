@@ -212,20 +212,7 @@ impl PickleablePyAnySerdeType {
                             append_bytes_vec(&mut bytes, option_choice_fn_py_bytes.as_bytes());
                             Ok(bytes)
                         })?
-                    } // PyAnySerdeType::GAMESTATE {
-                      //     agent_id_serde_type,
-                      // } => {
-                      //     let mut bytes = vec![18];
-                      //     Python::with_gil::<_, PyResult<_>>(|py| {
-                      //         let serde_type = agent_id_serde_type.extract::<PyAnySerdeType>(py)?;
-                      //         append_bytes_vec(
-                      //             &mut bytes,
-                      //             &PickleablePyAnySerdeType(Some(Some(serde_type.clone())))
-                      //                 .__getstate__()?[..],
-                      //         );
-                      //         Ok(bytes)
-                      //     })?
-                      // }
+                    }
                 };
                 option_bytes.append(&mut pyany_serde_type_bytes);
                 option_bytes
@@ -420,18 +407,6 @@ impl PickleablePyAnySerdeType {
                             })
                         })?
                     }
-                    // 18 => Python::with_gil::<_, PyResult<_>>(|py| {
-                    //     let serde_type_bytes;
-                    //     (serde_type_bytes, offset) = retrieve_bytes(buf, offset)?;
-                    //     let mut pickleable_serde_type = PickleablePyAnySerdeType(None);
-                    //     pickleable_serde_type.__setstate__(serde_type_bytes.to_vec())?;
-                    //     Ok(PyAnySerdeType::GAMESTATE {
-                    //         agent_id_serde_type: Py::new(
-                    //             py,
-                    //             pickleable_serde_type.0.unwrap().unwrap(),
-                    //         )?,
-                    //     })
-                    // })?,
                     v => Err(InvalidStateError::new_err(format!(
                         "Got invalid type byte for PyAnySerde: {v}"
                     )))?,
@@ -493,9 +468,6 @@ pub enum PyAnySerdeType {
         option_serde_types: Vec<PyAnySerdeType>,
         option_choice_fn: Py<PyFunction>,
     },
-    // GAMESTATE {
-    //     agent_id_serde_type: Py<PyAnySerdeType>,
-    // },
 }
 
 fn get_before_validator_fn<'py>(
