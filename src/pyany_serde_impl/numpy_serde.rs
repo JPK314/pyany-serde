@@ -610,12 +610,16 @@ macro_rules! create_numpy_pyany_serde {
         if let NumpySerdeConfig::STATIC {
             ref shape,
             allocation_pool_min_size,
+            allocation_pool_max_size,
             ..
         } = $config
         {
-            if allocation_pool_min_size > 0 {
+            if allocation_pool_max_size.map(|v| v > 0).unwrap_or(true) {
+                let starting_pool_size_min = allocation_pool_min_size.max(2);
+                let starting_pool_size = starting_pool_size_min
+                    .min(allocation_pool_max_size.unwrap_or(starting_pool_size_min));
                 Python::with_gil(|py| {
-                    for _ in 0..allocation_pool_min_size {
+                    for _ in 0..starting_pool_size {
                         let arr: Bound<'_, PyArray<$ty, _>> =
                             unsafe { PyArrayDyn::new(py, &shape[..], false) };
                         allocation_pool.push(arr.unbind());
