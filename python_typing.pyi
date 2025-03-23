@@ -83,7 +83,7 @@ class NumpySerdeConfig(Generic[T]):
 class NumpySerdeConfig_DYNAMIC(NumpySerdeConfig[T]):
     def __new__(
         cls,
-        preprocessor_fn: Optional[Callable[[T, int], ndarray]] = None,
+        preprocessor_fn: Optional[Callable[[T], ndarray]] = None,
         postprocessor_fn: Optional[Callable[[ndarray, int], T]] = None,
     ) -> NumpySerdeConfig_DYNAMIC: ...
 
@@ -92,7 +92,7 @@ class NumpySerdeConfig_STATIC(InitStrategy[T]):
         cls,
         shape: Tuple[int],
         preprocessor_fn: Optional[Callable[[T], ndarray]] = None,
-        postprocessor_fn: Optional[Callable[[ndarray], T]] = None,
+        postprocessor_fn: Optional[Callable[[ndarray, int], T]] = None,
         allocation_pool_min_size: int = 0,
         allocation_pool_max_size: Optional[int] = None,
     ) -> NumpySerdeConfig_STATIC: ...

@@ -789,12 +789,7 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpySerde<T> {
         };
 
         Ok(match postprocessor_fn_option {
-            Some(postprocessor_fn) => (
-                postprocessor_fn
-                    .bind(py)
-                    .call1((array, buf.as_ptr() as usize + offset))?,
-                offset,
-            ),
+            Some(postprocessor_fn) => (postprocessor_fn.bind(py).call1((array, offset))?, offset),
             None => (array.into_any(), offset),
         })
     }
