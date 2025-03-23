@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 
 use crate::{
-    communication::{append_i64, retrieve_i64},
+    communication::{append_i64, append_i64_vec, retrieve_i64},
     PyAnySerde,
 };
 
@@ -16,6 +16,16 @@ impl PyAnySerde for IntSerde {
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
         Ok(append_i64(buf, offset, obj.extract::<i64>()?))
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        _start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        append_i64_vec(v, obj.extract::<i64>()?);
+        Ok(())
     }
 
     fn retrieve<'py>(

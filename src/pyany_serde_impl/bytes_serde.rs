@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::{
-    communication::{append_bytes, retrieve_bytes},
+    communication::{append_bytes, append_bytes_vec, retrieve_bytes},
     PyAnySerde,
 };
 
@@ -16,7 +16,21 @@ impl PyAnySerde for BytesSerde {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        append_bytes(buf, offset, obj.downcast::<PyBytes>()?.as_bytes())
+        Ok(append_bytes(
+            buf,
+            offset,
+            obj.downcast::<PyBytes>()?.as_bytes(),
+        ))
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        _start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        append_bytes_vec(v, obj.downcast::<PyBytes>()?.as_bytes());
+        Ok(())
     }
 
     fn retrieve<'py>(

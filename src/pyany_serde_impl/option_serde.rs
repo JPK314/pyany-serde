@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyNone;
 
 use crate::{
-    communication::{append_bool, retrieve_bool},
+    communication::{append_bool, append_bool_vec, retrieve_bool},
     PyAnySerde,
 };
 
@@ -15,10 +15,9 @@ impl PyAnySerde for OptionSerde {
     fn append<'py>(
         &mut self,
         buf: &mut [u8],
-        offset: usize,
+        mut offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        let mut offset = offset;
         if obj.is_none() {
             offset = append_bool(buf, offset, false);
         } else {
@@ -26,6 +25,21 @@ impl PyAnySerde for OptionSerde {
             offset = self.value_serde.append(buf, offset, obj)?;
         }
         Ok(offset)
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        if obj.is_none() {
+            append_bool_vec(v, false);
+        } else {
+            append_bool_vec(v, true);
+            self.value_serde.append_vec(v, start_addr, obj)?;
+        }
+        Ok(())
     }
 
     fn retrieve<'py>(

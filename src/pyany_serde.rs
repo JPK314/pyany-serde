@@ -3,7 +3,7 @@ use pyo3::types::PyString;
 
 use dyn_clone::{clone_trait_object, DynClone};
 
-use crate::communication::{append_bool, retrieve_bool};
+use crate::communication::{append_bool, append_bool_vec, retrieve_bool};
 use crate::pyany_serde_impl::{
     get_numpy_serde, BoolSerde, BytesSerde, ComplexSerde, DataclassSerde, DictSerde, DynamicSerde,
     FloatSerde, IntSerde, ListSerde, OptionSerde, PickleSerde, PythonSerdeSerde, SetSerde,
@@ -19,6 +19,12 @@ pub trait PyAnySerde: DynClone {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize>;
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()>;
     fn retrieve<'py>(
         &mut self,
         py: Python<'py>,
@@ -28,10 +34,9 @@ pub trait PyAnySerde: DynClone {
     fn append_option<'py>(
         &mut self,
         buf: &mut [u8],
-        offset: usize,
+        mut offset: usize,
         obj_option: &Option<&Bound<'py, PyAny>>,
     ) -> PyResult<usize> {
-        let mut offset = offset;
         if let Some(obj) = obj_option {
             offset = append_bool(buf, offset, true);
             offset = self.append(buf, offset, obj)?;
@@ -40,13 +45,26 @@ pub trait PyAnySerde: DynClone {
         }
         Ok(offset)
     }
+    fn append_option_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj_option: &Option<&Bound<'py, PyAny>>,
+    ) -> PyResult<()> {
+        if let Some(obj) = obj_option {
+            append_bool_vec(v, true);
+            self.append_vec(v, start_addr, obj)?;
+        } else {
+            append_bool_vec(v, false);
+        }
+        Ok(())
+    }
     fn retrieve_option<'py>(
         &mut self,
         py: Python<'py>,
         buf: &[u8],
-        offset: usize,
+        mut offset: usize,
     ) -> PyResult<(Option<Bound<'py, PyAny>>, usize)> {
-        let mut offset = offset;
         let is_some;
         (is_some, offset) = retrieve_bool(buf, offset)?;
         if is_some {

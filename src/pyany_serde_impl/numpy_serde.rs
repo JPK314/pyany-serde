@@ -185,6 +185,7 @@ impl PickleableNumpySerdeConfig {
     }
 }
 
+// TODO: remove preprocessor and postprocessor fns
 #[pyclass]
 #[derive(Debug, Clone, Display)]
 pub enum NumpySerdeConfig {
@@ -216,6 +217,16 @@ macro_rules! create_union {
         )+
         Ok::<_, PyErr>(union_list)
     }};
+}
+
+pub fn check_for_unpickling<'py>(data: &Bound<'py, PyAny>) -> PyResult<bool> {
+    let preprocessor_fn_hex_option = data
+        .get_item("preprocessor_fn_pkl")?
+        .extract::<Option<String>>()?;
+    let postprocessor_fn_hex_option = data
+        .get_item("postprocessor_fn_pkl")?
+        .extract::<Option<String>>()?;
+    Ok(preprocessor_fn_hex_option.is_some() || postprocessor_fn_hex_option.is_some())
 }
 
 fn get_enum_subclass_before_validator_fn<'py>(
@@ -501,20 +512,55 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
             NumpySerdeConfig::DYNAMIC { .. } => {
                 let shape = array.shape();
                 offset = append_usize(buf, offset, shape.len());
-                for dim in shape.iter() {
-                    offset = append_usize(buf, offset, *dim);
+                for &dim in shape.iter() {
+                    offset = append_usize(buf, offset, dim);
                 }
                 let obj_vec = array.to_vec()?;
                 offset = offset + get_bytes_to_alignment::<T>(buf.as_ptr() as usize + offset);
-                offset = append_bytes(buf, offset, cast_slice::<T, u8>(&obj_vec))?;
+                offset = append_bytes(buf, offset, cast_slice::<T, u8>(&obj_vec));
             }
             NumpySerdeConfig::STATIC { .. } => {
                 let obj_vec = array.to_vec()?;
                 offset = offset + get_bytes_to_alignment::<T>(buf.as_ptr() as usize + offset);
-                offset = append_bytes(buf, offset, cast_slice::<T, u8>(&obj_vec))?;
+                offset = append_bytes(buf, offset, cast_slice::<T, u8>(&obj_vec));
             }
         }
         Ok(offset)
+    }
+
+    fn append_inner_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        array: &Bound<'py, PyArrayDyn<T>>,
+    ) -> PyResult<()> {
+        let Some(start_addr) = start_addr else {
+            Err(InvalidStateError::new_err("Tried to serialize numpy data, but there was no start_addr provided so there's no way to know how to align the data. (was this called from inside a preprocessor function?)"))?
+        };
+        match &self.config {
+            NumpySerdeConfig::DYNAMIC { .. } => {
+                let shape = array.shape();
+                append_usize_vec(v, shape.len());
+                for &dim in shape.iter() {
+                    append_usize_vec(v, dim);
+                }
+                let obj_vec = array.to_vec()?;
+                v.append(&mut vec![
+                    0;
+                    get_bytes_to_alignment::<T>(start_addr + v.len())
+                ]);
+                append_bytes_vec(v, cast_slice::<T, u8>(&obj_vec));
+            }
+            NumpySerdeConfig::STATIC { .. } => {
+                let obj_vec = array.to_vec()?;
+                v.append(&mut vec![
+                    0;
+                    get_bytes_to_alignment::<T>(start_addr + v.len())
+                ]);
+                append_bytes_vec(v, cast_slice::<T, u8>(&obj_vec));
+            }
+        }
+        Ok(())
     }
 
     pub fn retrieve_inner<'py>(
@@ -698,6 +744,33 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpySerde<T> {
         }
     }
 
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        let preprocessor_fn_option = match &self.config {
+            NumpySerdeConfig::DYNAMIC {
+                preprocessor_fn, ..
+            } => preprocessor_fn,
+            NumpySerdeConfig::STATIC {
+                preprocessor_fn, ..
+            } => preprocessor_fn,
+        };
+        match preprocessor_fn_option {
+            Some(preprocessor_fn) => self.append_inner_vec(
+                v,
+                start_addr,
+                preprocessor_fn
+                    .bind(obj.py())
+                    .call1((obj,))?
+                    .downcast::<PyArrayDyn<T>>()?,
+            ),
+            None => self.append_inner_vec(v, start_addr, obj.downcast::<PyArrayDyn<T>>()?),
+        }
+    }
+
     fn retrieve<'py>(
         &mut self,
         py: Python<'py>,
@@ -716,7 +789,12 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpySerde<T> {
         };
 
         Ok(match postprocessor_fn_option {
-            Some(postprocessor_fn) => (postprocessor_fn.bind(py).call1((array,))?, offset),
+            Some(postprocessor_fn) => (
+                postprocessor_fn
+                    .bind(py)
+                    .call1((array, buf.as_ptr() as usize + offset))?,
+                offset,
+            ),
             None => (array.into_any(), offset),
         })
     }

@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 
 use crate::{
-    communication::{append_f64, retrieve_f64},
+    communication::{append_f64, append_f64_vec, retrieve_f64},
     PyAnySerde,
 };
 
@@ -16,6 +16,16 @@ impl PyAnySerde for FloatSerde {
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
         Ok(append_f64(buf, offset, obj.extract::<f64>()?))
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        _start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        append_f64_vec(v, obj.extract::<f64>()?);
+        Ok(())
     }
 
     fn retrieve<'py>(

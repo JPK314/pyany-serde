@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyComplex;
 
 use crate::{
-    communication::{append_c_double, retrieve_c_double},
+    communication::{append_c_double, append_c_double_vec, retrieve_c_double},
     PyAnySerde,
 };
 
@@ -20,6 +20,18 @@ impl PyAnySerde for ComplexSerde {
         let mut offset = append_c_double(buf, offset, complex.real());
         offset = append_c_double(buf, offset, complex.imag());
         Ok(offset)
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        _start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        let complex = obj.downcast::<PyComplex>()?;
+        append_c_double_vec(v, complex.real());
+        append_c_double_vec(v, complex.imag());
+        Ok(())
     }
 
     fn retrieve<'py>(

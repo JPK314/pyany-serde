@@ -1,4 +1,7 @@
 use std::collections::BTreeMap;
+use std::env;
+use std::io;
+use std::io::Write;
 use std::str::FromStr;
 
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -15,7 +18,8 @@ use crate::communication::{
     retrieve_usize,
 };
 use crate::pyany_serde_impl::{
-    InitStrategy, NumpySerdeConfig, PickleableInitStrategy, PickleableNumpySerdeConfig,
+    numpy_check_for_unpickling, InitStrategy, NumpySerdeConfig, PickleableInitStrategy,
+    PickleableNumpySerdeConfig,
 };
 
 // This enum is used to store information about a type which is sent between processes to dynamically recover a Box<dyn PyAnySerde>
@@ -46,7 +50,7 @@ impl PickleablePyAnySerdeType {
     }
 
     // pickle methods
-    fn __getstate__(&self) -> PyResult<Vec<u8>> {
+    pub fn __getstate__(&self) -> PyResult<Vec<u8>> {
         let pyany_serde_type_option = self.0.as_ref().unwrap();
         Ok(match pyany_serde_type_option {
             Some(pyany_serde_type) => {
@@ -221,7 +225,7 @@ impl PickleablePyAnySerdeType {
         })
     }
 
-    fn __setstate__(&mut self, state: Vec<u8>) -> PyResult<()> {
+    pub fn __setstate__(&mut self, state: Vec<u8>) -> PyResult<()> {
         let buf = &state[..];
         let option_byte = state[0];
         self.0 = Some(match option_byte {
@@ -470,6 +474,69 @@ pub enum PyAnySerdeType {
     },
 }
 
+fn check_for_unpickling_aux<'py>(data: &Bound<'py, PyAny>) -> PyResult<bool> {
+    let pyany_serde_type_field = data
+        .get_item("type")?
+        .extract::<String>()?
+        .to_ascii_lowercase();
+    Ok(match pyany_serde_type_field.as_str() {
+        "dataclass" => true,
+        "dict" => {
+            check_for_unpickling_aux(&data.get_item("keys_serde_type")?)?
+                || check_for_unpickling_aux(&data.get_item("values_serde_type")?)?
+        }
+        "list" => check_for_unpickling_aux(&data.get_item("items_serde_type")?)?,
+        "numpy" => numpy_check_for_unpickling(&data.get_item("config")?)?,
+        "option" => check_for_unpickling_aux(&data.get_item("value_serde_type")?)?,
+        "pythonserde" => true,
+        "set" => check_for_unpickling_aux(&data.get_item("items_serde_type")?)?,
+        "tuple" => {
+            let mut has_unpickling = false;
+            for item_serde_type_data in data
+                .get_item("item_serde_types")?
+                .extract::<Vec<Bound<'_, PyAny>>>()?
+                .iter()
+            {
+                has_unpickling |= check_for_unpickling_aux(&item_serde_type_data)?;
+            }
+            has_unpickling
+        }
+        "typeddict" => {
+            let mut has_unpickling = false;
+            for (_, serde_type_data) in data
+                .get_item("key_serde_type_dict")?
+                .downcast_into::<PyDict>()?
+                .iter()
+            {
+                has_unpickling |= check_for_unpickling_aux(&serde_type_data)?;
+            }
+            has_unpickling
+        }
+        "union" => true,
+        _ => false,
+    })
+}
+
+#[pyfunction]
+fn check_for_unpickling<'py, 'a>(data: &'a Bound<'py, PyAny>) -> PyResult<&'a Bound<'py, PyAny>> {
+    let silent_mode = env::var("PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT")
+        .map(|v| v.eq("1"))
+        .unwrap_or(false);
+    if !silent_mode && check_for_unpickling_aux(&data)? {
+        println!("WARNING: About to call unpickle on the hexadecimal-encoded binary contents of some config fields. If you do not trust the origins of this json, or you cannot otherwise verify the safety of this field's contents, you should not proceed.");
+        print!("Proceed? (y/N)\t");
+        io::stdout().flush()?;
+        let mut response = String::new();
+        io::stdin().read_line(&mut response).unwrap();
+        if !response.trim().eq_ignore_ascii_case("y") {
+            Err(PyValueError::new_err("Operation cancelled by user due to unpickling required to build config model from json"))?
+        } else {
+            println!("Continuing with execution. If you would like to ignore this warning in the future, set the environment variable PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT to \"1\".")
+        }
+    }
+    Ok(data)
+}
+
 fn get_before_validator_fn<'py>(
     _handler: &Bound<'py, PyAny>,
     _schema_validator: &Bound<'py, PyAny>,
@@ -480,10 +547,13 @@ fn get_before_validator_fn<'py>(
     let func = move |args: &Bound<'_, PyTuple>,
                      _kwargs: Option<&Bound<'_, PyDict>>|
           -> PyResult<PyObject> {
+        // initial setup
         let py = args.py();
         let data = args.get_item(0)?;
         let handler = py_handler.bind(py);
         let schema_validator = py_schema_validator.bind(py);
+
+        // processing of data
         let pyany_serde_type_field = data
             .get_item("type")?
             .extract::<String>()?
@@ -708,6 +778,7 @@ impl PyAnySerdeType {
         let typed_dict_schema = core_schema.getattr("typed_dict_schema")?;
         let list_schema = core_schema.getattr("list_schema")?;
         let dict_schema = core_schema.getattr("dict_schema")?;
+        let any_schema = core_schema.getattr("any_schema")?;
         let typed_dict_field = core_schema.getattr("typed_dict_field")?;
 
         let pyany_serde_type_reference_schema = core_schema
@@ -873,6 +944,13 @@ impl PyAnySerdeType {
                 core_schema.call_method1(
                     "chain_schema",
                     (vec![
+                        core_schema.call_method1(
+                            "no_info_before_validator_function",
+                            (
+                                wrap_pyfunction!(check_for_unpickling, py)?,
+                                any_schema.call0()?,
+                            ),
+                        )?,
                         pyany_serde_type_union_schema.clone(),
                         core_schema.call_method1(
                             "no_info_before_validator_function",

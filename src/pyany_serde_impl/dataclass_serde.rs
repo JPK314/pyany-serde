@@ -261,24 +261,34 @@ impl PyAnySerde for DataclassSerde {
     fn append<'py>(
         &mut self,
         buf: &mut [u8],
-        offset: usize,
+        mut offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        let mut offset = offset;
         for (field, pyany_serde) in self.field_serde_kv_list.iter_mut() {
             offset = pyany_serde.append(buf, offset, &obj.getattr(&*field)?)?;
         }
         Ok(offset)
     }
 
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        for (field, pyany_serde) in self.field_serde_kv_list.iter_mut() {
+            pyany_serde.append_vec(v, start_addr, &obj.getattr(&*field)?)?;
+        }
+        Ok(())
+    }
+
     fn retrieve<'py>(
         &mut self,
         py: Python<'py>,
         buf: &[u8],
-        offset: usize,
+        mut offset: usize,
     ) -> PyResult<(Bound<'py, PyAny>, usize)> {
         let mut kv_list = Vec::with_capacity(self.field_serde_kv_list.len());
-        let mut offset = offset;
         for (field, pyany_serde) in self.field_serde_kv_list.iter_mut() {
             let field_value;
             (field_value, offset) = pyany_serde.retrieve(py, buf, offset)?;

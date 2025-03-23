@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::{
-    communication::{append_bytes, retrieve_bytes},
+    communication::{append_bytes, append_bytes_vec, retrieve_bytes},
     PyAnySerde,
 };
 
@@ -30,7 +30,7 @@ impl PyAnySerde for PickleSerde {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        append_bytes(
+        Ok(append_bytes(
             buf,
             offset,
             self.pickle_dumps
@@ -38,7 +38,24 @@ impl PyAnySerde for PickleSerde {
                 .call1((obj,))?
                 .downcast_into::<PyBytes>()?
                 .as_bytes(),
-        )
+        ))
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        _start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        append_bytes_vec(
+            v,
+            self.pickle_dumps
+                .bind(obj.py())
+                .call1((obj,))?
+                .downcast_into::<PyBytes>()?
+                .as_bytes(),
+        );
+        Ok(())
     }
 
     fn retrieve<'py>(

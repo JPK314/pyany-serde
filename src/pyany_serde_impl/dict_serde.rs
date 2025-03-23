@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use crate::{
-    communication::{append_usize, retrieve_usize},
+    communication::{append_usize, append_usize_vec, retrieve_usize},
     PyAnySerde,
 };
 
@@ -26,6 +26,21 @@ impl PyAnySerde for DictSerde {
             offset = self.values_serde.append(buf, offset, &value)?;
         }
         Ok(offset)
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        let dict = obj.downcast::<PyDict>()?;
+        append_usize_vec(v, dict.len());
+        for (key, value) in dict.iter() {
+            self.keys_serde.append_vec(v, start_addr, &key)?;
+            self.values_serde.append_vec(v, start_addr, &value)?;
+        }
+        Ok(())
     }
 
     fn retrieve<'py>(

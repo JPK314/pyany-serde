@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
+use crate::communication::append_usize_vec;
 use crate::{
     common::{
         detect_python_type, get_python_type_byte, retrieve_python_type, NumpyDtype, PythonType,
@@ -115,12 +116,11 @@ impl PyAnySerde for DynamicSerde {
     fn append<'py>(
         &mut self,
         buf: &mut [u8],
-        offset: usize,
+        mut offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
         let python_type = detect_python_type(obj)?;
         buf[offset] = get_python_type_byte(&python_type);
-        let mut offset = offset + 1;
         match python_type {
             PythonType::BOOL => {
                 offset = self.boolean_serde.append(buf, offset, obj)?;
@@ -206,6 +206,101 @@ impl PyAnySerde for DynamicSerde {
             }
         };
         Ok(offset)
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        let python_type = detect_python_type(obj)?;
+        v.push(get_python_type_byte(&python_type));
+        match python_type {
+            PythonType::BOOL => {
+                self.boolean_serde.append_vec(v, start_addr, obj)?;
+            }
+            PythonType::INT => {
+                self.int_serde.append_vec(v, start_addr, obj)?;
+            }
+            PythonType::FLOAT => {
+                self.float_serde.append_vec(v, start_addr, obj)?;
+            }
+            PythonType::COMPLEX => {
+                self.complex_serde.append_vec(v, start_addr, obj)?;
+            }
+            PythonType::STRING => {
+                self.string_serde.append_vec(v, start_addr, obj)?;
+            }
+            PythonType::BYTES => {
+                self.bytes_serde.append_vec(v, start_addr, obj)?;
+            }
+            PythonType::NUMPY { dtype } => match dtype {
+                NumpyDtype::INT8 => {
+                    self.numpy_i8_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::INT16 => {
+                    self.numpy_i16_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::INT32 => {
+                    self.numpy_i32_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::INT64 => {
+                    self.numpy_i64_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::UINT8 => {
+                    self.numpy_u8_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::UINT16 => {
+                    self.numpy_u16_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::UINT32 => {
+                    self.numpy_u32_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::UINT64 => {
+                    self.numpy_u64_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::FLOAT32 => {
+                    self.numpy_f32_serde.append_vec(v, start_addr, obj)?;
+                }
+                NumpyDtype::FLOAT64 => {
+                    self.numpy_f64_serde.append_vec(v, start_addr, obj)?;
+                }
+            },
+            PythonType::LIST => {
+                let list = obj.downcast::<PyList>()?;
+                append_usize_vec(v, list.len());
+                for item in list.iter() {
+                    self.append_vec(v, start_addr, &item)?;
+                }
+            }
+            PythonType::SET => {
+                let set = obj.downcast::<PyList>()?;
+                append_usize_vec(v, set.len());
+                for item in set.iter() {
+                    self.append_vec(v, start_addr, &item)?;
+                }
+            }
+            PythonType::TUPLE => {
+                let tuple = obj.downcast::<PyList>()?;
+                append_usize_vec(v, tuple.len());
+                for item in tuple.iter() {
+                    self.append_vec(v, start_addr, &item)?;
+                }
+            }
+            PythonType::DICT => {
+                let dict = obj.downcast::<PyDict>()?;
+                append_usize_vec(v, dict.len());
+                for (key, value) in dict.iter() {
+                    self.append_vec(v, start_addr, &key)?;
+                    self.append_vec(v, start_addr, &value)?;
+                }
+            }
+            PythonType::OTHER => {
+                self.pickle_serde.append_vec(v, start_addr, obj)?;
+            }
+        };
+        Ok(())
     }
 
     fn retrieve<'py>(

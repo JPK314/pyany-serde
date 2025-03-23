@@ -17,6 +17,10 @@ macro_rules! define_primitive_communication {
                 end
             }
 
+            pub fn [<append_ $type _vec>](v: &mut Vec<u8>, val: $type) {
+                v.extend_from_slice(&val.to_ne_bytes());
+            }
+
             pub fn [<retrieve_ $type>](buf: &[u8], offset: usize) -> PyResult<($type, usize)> {
                 let end = offset + size_of::<$type>();
                 Ok(($type::from_ne_bytes(buf[offset..end].try_into()?), end))
@@ -55,10 +59,6 @@ pub fn retrieve_bool(buf: &[u8], offset: usize) -> PyResult<(bool, usize)> {
     Ok((val, end))
 }
 
-pub fn append_usize_vec(v: &mut Vec<u8>, u: usize) {
-    v.extend_from_slice(&u.to_ne_bytes());
-}
-
 pub fn append_bytes_vec(v: &mut Vec<u8>, bytes: &[u8]) {
     append_usize_vec(v, bytes.len());
     v.extend_from_slice(bytes);
@@ -73,18 +73,18 @@ pub fn retrieve_string(buf: &[u8], offset: usize) -> PyResult<(String, usize)> {
     Ok((String::from_utf8(string_bytes.to_vec())?, offset))
 }
 
-pub fn insert_bytes(buf: &mut [u8], offset: usize, bytes: &[u8]) -> PyResult<usize> {
+pub fn insert_bytes(buf: &mut [u8], offset: usize, bytes: &[u8]) -> usize {
     let end = offset + bytes.len();
     buf[offset..end].copy_from_slice(bytes);
-    Ok(end)
+    end
 }
 
-pub fn append_bytes(buf: &mut [u8], offset: usize, bytes: &[u8]) -> PyResult<usize> {
+pub fn append_bytes(buf: &mut [u8], offset: usize, bytes: &[u8]) -> usize {
     let bytes_len = bytes.len();
     let start = append_usize(buf, offset, bytes_len);
     let end = start + bytes.len();
     buf[start..end].copy_from_slice(bytes);
-    Ok(end)
+    end
 }
 
 pub fn retrieve_bytes(buf: &[u8], offset: usize) -> PyResult<(&[u8], usize)> {

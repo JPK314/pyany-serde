@@ -23,18 +23,32 @@ ValuesT = TypeVar("ValuesT")
 
 class PythonSerde(Generic[T]):
     @abstractmethod
-    def to_bytes(self, obj: T) -> bytes:
+    def append(self, buf: bytes, offset: int, obj: T) -> int:
         """
-        Function to convert obj to bytes, for passing between batched agent and the agent manager.
-        :return: bytes b such that from_bytes(b) == obj.
+        Appends bytes of obj to buf starting at offset.
+        :param buf: a memoryview to write into (DO NOT hold a reference to this memory view after this function ends!)
+        :param offset: an offset into the memory view to start writing
+        :param obj: the obj to write as bytes
+        :return: new offset after appending bytes
         """
         raise NotImplementedError
 
     @abstractmethod
-    def from_bytes(self, byts: bytes) -> T:
+    def get_bytes(self, start_addr: Optional[int], obj: T) -> bytes:
         """
-        Function to convert bytes to T, for passing between batched agent and the agent manager.
-        :return: T obj such that from_bytes(to_bytes(obj)) == obj.
+        :param start_addr: the starting address for where the returned bytes will be written. May be None in contexts where there is no guaranteed start address.
+        :param obj: the obj to write as bytes
+        :return: bytes for obj
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def retrieve(self, buf: bytes, offset: int) -> Tuple[T, int]:
+        """
+        Retrieves obj encoded using self.append or self.get_bytes from the buffer starting at offset.
+        :param buf: a memoryview to read from (DO NOT hold a reference to this memory view after this function ends!)
+        :param offset: an offset into the memory view to start reading
+        :return: Tuple of obj and the offset into the memory view after retrieving obj
         """
         raise NotImplementedError
 
@@ -69,8 +83,8 @@ class NumpySerdeConfig(Generic[T]):
 class NumpySerdeConfig_DYNAMIC(NumpySerdeConfig[T]):
     def __new__(
         cls,
-        preprocessor_fn: Optional[Callable[[T], ndarray]] = None,
-        postprocessor_fn: Optional[Callable[[ndarray], T]] = None,
+        preprocessor_fn: Optional[Callable[[T, int], ndarray]] = None,
+        postprocessor_fn: Optional[Callable[[ndarray, int], T]] = None,
     ) -> NumpySerdeConfig_DYNAMIC: ...
 
 class NumpySerdeConfig_STATIC(InitStrategy[T]):
@@ -183,7 +197,7 @@ class PyAnySerdeType_TUPLE(PyAnySerdeType[Tuple]):
 
 class PyAnySerdeType_TYPEDDICT(PyAnySerdeType[_TypedDict]):
     def __new__(
-        key_serde_type_dict: Dict[str, PyAnySerdeType]
+        key_serde_type_dict: Dict[str, PyAnySerdeType],
     ) -> PyAnySerdeType_TYPEDDICT: ...
 
 class PyAnySerdeType_UNION(PyAnySerdeType[Union]):

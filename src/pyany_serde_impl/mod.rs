@@ -26,7 +26,10 @@ pub use dynamic_serde::DynamicSerde;
 pub use float_serde::FloatSerde;
 pub use int_serde::IntSerde;
 pub use list_serde::ListSerde;
-pub use numpy_serde::{get_numpy_serde, NumpySerde, NumpySerdeConfig, PickleableNumpySerdeConfig};
+pub use numpy_serde::{
+    check_for_unpickling as numpy_check_for_unpickling, get_numpy_serde, NumpySerde,
+    NumpySerdeConfig, PickleableNumpySerdeConfig,
+};
 pub use option_serde::OptionSerde;
 pub use pickle_serde::PickleSerde;
 pub use python_serde_serde::PythonSerdeSerde;

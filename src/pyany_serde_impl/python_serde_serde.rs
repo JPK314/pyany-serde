@@ -1,10 +1,9 @@
+use pyo3::ffi::{PyBUF_READ, PyBUF_WRITE, PyMemoryView_FromMemory};
 use pyo3::types::PyBytes;
 use pyo3::{intern, prelude::*};
+use std::os::raw::c_char;
 
-use crate::{
-    communication::{append_bytes, retrieve_bytes},
-    PyAnySerde,
-};
+use crate::PyAnySerde;
 
 #[derive(Clone)]
 pub struct PythonSerdeSerde {
@@ -18,15 +17,38 @@ impl PyAnySerde for PythonSerdeSerde {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        append_bytes(
-            buf,
-            offset,
+        let py = obj.py();
+        let memory_view = unsafe {
+            Bound::<'py, PyAny>::from_owned_ptr(
+                py,
+                PyMemoryView_FromMemory(
+                    buf.as_mut_ptr() as *mut c_char,
+                    buf.len().try_into().unwrap(),
+                    PyBUF_WRITE,
+                ),
+            )
+        };
+
+        self.python_serde
+            .bind(obj.py())
+            .call_method1(intern!(py, "append"), (memory_view, offset, obj))?
+            .extract()
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        v.extend_from_slice(
             self.python_serde
                 .bind(obj.py())
-                .call_method1(intern!(obj.py(), "to_bytes"), (obj,))?
+                .call_method1(intern!(obj.py(), "get_bytes"), (start_addr, obj))?
                 .downcast::<PyBytes>()?
                 .as_bytes(),
-        )
+        );
+        Ok(())
     }
 
     fn retrieve<'py>(
@@ -35,11 +57,19 @@ impl PyAnySerde for PythonSerdeSerde {
         buf: &[u8],
         offset: usize,
     ) -> PyResult<(Bound<'py, PyAny>, usize)> {
-        let (obj_bytes, offset) = retrieve_bytes(buf, offset)?;
-        let obj = self
-            .python_serde
+        let memory_view = unsafe {
+            Bound::<'py, PyAny>::from_owned_ptr(
+                py,
+                PyMemoryView_FromMemory(
+                    buf.as_ptr() as *mut c_char,
+                    buf.len().try_into().unwrap(),
+                    PyBUF_READ,
+                ),
+            )
+        };
+        self.python_serde
             .bind(py)
-            .call_method1(intern!(py, "from_bytes"), (PyBytes::new(py, obj_bytes),))?;
-        Ok((obj, offset))
+            .call_method1(intern!(py, "retrieve"), (memory_view, offset))?
+            .extract()
     }
 }

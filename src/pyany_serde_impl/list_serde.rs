@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 
 use crate::{
-    communication::{append_usize, retrieve_usize},
+    communication::{append_usize, append_usize_vec, retrieve_usize},
     PyAnySerde,
 };
 
@@ -24,6 +24,20 @@ impl PyAnySerde for ListSerde {
             offset = self.items_serde.append(buf, offset, &item)?;
         }
         Ok(offset)
+    }
+
+    fn append_vec<'py>(
+        &mut self,
+        v: &mut Vec<u8>,
+        start_addr: Option<usize>,
+        obj: &Bound<'py, PyAny>,
+    ) -> PyResult<()> {
+        let list = obj.downcast::<PyList>()?;
+        append_usize_vec(v, list.len());
+        for item in list.iter() {
+            self.items_serde.append_vec(v, start_addr, &item)?;
+        }
+        Ok(())
     }
 
     fn retrieve<'py>(
