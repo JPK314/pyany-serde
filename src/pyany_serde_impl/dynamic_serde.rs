@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
 use crate::communication::append_usize_vec;
+use crate::create_numpy_pyany_serde;
 use crate::{
     common::{
         detect_python_type, get_python_type_byte, retrieve_python_type, NumpyDtype, PythonType,
@@ -49,46 +50,16 @@ impl DynamicSerde {
             preprocessor_fn: None,
             postprocessor_fn: None,
         };
-        let numpy_i8_serde = NumpySerde::<i8> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_i16_serde = NumpySerde::<i16> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_i32_serde = NumpySerde::<i32> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_i64_serde = NumpySerde::<i64> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_u8_serde = NumpySerde::<u8> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_u16_serde = NumpySerde::<u16> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_u32_serde = NumpySerde::<u32> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_u64_serde = NumpySerde::<u64> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_f32_serde = NumpySerde::<f32> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
-        let numpy_f64_serde = NumpySerde::<f64> {
-            config: numpy_serde_config.clone(),
-            allocation_pool: Vec::new(),
-        };
+        let numpy_i8_serde = *create_numpy_pyany_serde!(i8, numpy_serde_config.clone());
+        let numpy_i16_serde = *create_numpy_pyany_serde!(i16, numpy_serde_config.clone());
+        let numpy_i32_serde = *create_numpy_pyany_serde!(i32, numpy_serde_config.clone());
+        let numpy_i64_serde = *create_numpy_pyany_serde!(i64, numpy_serde_config.clone());
+        let numpy_u8_serde = *create_numpy_pyany_serde!(u8, numpy_serde_config.clone());
+        let numpy_u16_serde = *create_numpy_pyany_serde!(u16, numpy_serde_config.clone());
+        let numpy_u32_serde = *create_numpy_pyany_serde!(u32, numpy_serde_config.clone());
+        let numpy_u64_serde = *create_numpy_pyany_serde!(u64, numpy_serde_config.clone());
+        let numpy_f32_serde = *create_numpy_pyany_serde!(f32, numpy_serde_config.clone());
+        let numpy_f64_serde = *create_numpy_pyany_serde!(f64, numpy_serde_config.clone());
 
         Ok(DynamicSerde {
             pickle_serde,

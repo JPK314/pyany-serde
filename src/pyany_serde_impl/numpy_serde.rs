@@ -1,11 +1,14 @@
+use std::env;
+
 use bytemuck::{cast_slice, AnyBitPattern, NoUninit};
 use numpy::ndarray::ArrayD;
 use numpy::{Element, PyArrayDyn, PyArrayMethods, PyUntypedArrayMethods};
 use numpy::{IntoPyArray, PyArray};
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
-use pyo3::types::{PyBytes, PyCFunction, PyDict, PyTuple, PyType};
-use pyo3::{prelude::*, PyTypeInfo};
+use pyo3::sync::GILOnceCell;
+use pyo3::types::{PyBytes, PyCFunction, PyDict, PyList, PyTuple, PyType};
+use pyo3::{intern, prelude::*, PyTypeInfo};
 use strum_macros::Display;
 
 use crate::communication::{
@@ -123,6 +126,7 @@ impl PickleableNumpySerdeConfig {
                 shape,
                 allocation_pool_min_size,
                 allocation_pool_max_size,
+                allocation_pool_warning_size,
             } => {
                 let mut bytes = vec![1];
                 append_python_pkl_option_vec(&mut bytes, preprocessor_fn)?;
@@ -133,6 +137,7 @@ impl PickleableNumpySerdeConfig {
                 }
                 append_usize_vec(&mut bytes, *allocation_pool_min_size);
                 append_usize_option_vec(&mut bytes, allocation_pool_max_size);
+                append_usize_option_vec(&mut bytes, allocation_pool_warning_size);
                 bytes
             }
         })
@@ -169,12 +174,15 @@ impl PickleableNumpySerdeConfig {
                 (allocation_pool_min_size, offset) = retrieve_usize(buf, offset)?;
                 let allocation_pool_max_size;
                 (allocation_pool_max_size, _) = retrieve_usize_option(buf, offset)?;
+                let allocation_pool_warning_size;
+                (allocation_pool_warning_size, _) = retrieve_usize_option(buf, offset)?;
                 NumpySerdeConfig::STATIC {
                     preprocessor_fn,
                     postprocessor_fn,
                     shape,
                     allocation_pool_min_size,
                     allocation_pool_max_size,
+                    allocation_pool_warning_size,
                 }
             }
             v => Err(InvalidStateError::new_err(format!(
@@ -194,13 +202,14 @@ pub enum NumpySerdeConfig {
         preprocessor_fn: Option<PyObject>,
         postprocessor_fn: Option<PyObject>,
     },
-    #[pyo3(constructor = (shape, preprocessor_fn = None, postprocessor_fn = None, allocation_pool_min_size = 0, allocation_pool_max_size = None))]
+    #[pyo3(constructor = (shape, preprocessor_fn = None, postprocessor_fn = None, allocation_pool_min_size = 0, allocation_pool_max_size = None, allocation_pool_warning_size = Some(10000)))]
     STATIC {
         shape: Vec<usize>,
         preprocessor_fn: Option<PyObject>,
         postprocessor_fn: Option<PyObject>,
         allocation_pool_min_size: usize,
         allocation_pool_max_size: Option<usize>,
+        allocation_pool_warning_size: Option<usize>,
     },
 }
 
@@ -298,6 +307,9 @@ fn get_enum_subclass_before_validator_fn<'py>(
             let allocation_pool_max_size = data
                 .get_item("allocation_pool_max_size")?
                 .extract::<Option<usize>>()?;
+            let allocation_pool_warning_size = data
+                .get_item("allocation_pool_warning_size")?
+                .extract::<Option<usize>>()?;
             if allocation_pool_max_size.is_some()
                 && allocation_pool_min_size > allocation_pool_max_size.unwrap()
             {
@@ -311,6 +323,7 @@ fn get_enum_subclass_before_validator_fn<'py>(
                 shape,
                 allocation_pool_min_size,
                 allocation_pool_max_size,
+                allocation_pool_warning_size,
             }
             .into_pyobject(py)?
             .into_any()
@@ -389,6 +402,13 @@ fn get_enum_subclass_typed_dict_schema<'py>(
                 Some(&PyDict::from_sequence(&vec![("ge", 0)].into_pyobject(py)?)?),
             )?,))?,))?,
         )?;
+        typed_dict_fields.set_item(
+            "allocation_pool_warning_size",
+            typed_dict_field.call1((nullable_schema.call1((int_schema.call(
+                (),
+                Some(&PyDict::from_sequence(&vec![("ge", 0)].into_pyobject(py)?)?),
+            )?,))?,))?,
+        )?;
     }
     typed_dict_schema.call1((typed_dict_fields,))
 }
@@ -460,6 +480,7 @@ impl NumpySerdeConfig {
                     shape,
                     allocation_pool_min_size,
                     allocation_pool_max_size,
+                    allocation_pool_warning_size,
                 } => {
                     let preprocessor_fn_pkl = preprocessor_fn
                         .as_ref()
@@ -488,6 +509,7 @@ impl NumpySerdeConfig {
                     data.set_item("shape", shape)?;
                     data.set_item("allocation_pool_min_size", allocation_pool_min_size)?;
                     data.set_item("allocation_pool_max_size", allocation_pool_max_size)?;
+                    data.set_item("allocation_pool_warning_size", allocation_pool_warning_size)?;
                 }
             }
             Ok(data.into_any().unbind())
@@ -596,6 +618,7 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                 shape,
                 allocation_pool_min_size,
                 allocation_pool_max_size,
+                allocation_pool_warning_size,
                 ..
             } => {
                 offset = offset + get_bytes_to_alignment::<T>(buf.as_ptr() as usize + offset);
@@ -610,8 +633,8 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                     let idx2 = fastrand::usize(..pool_size);
                     let e1 = &self.allocation_pool[idx1];
                     let e2 = &self.allocation_pool[idx2];
-                    let e1_free = e1.get_refcnt(py) > 1;
-                    let e2_free = e2.get_refcnt(py) > 1;
+                    let e1_free = e1.get_refcnt(py) == 1;
+                    let e2_free = e2.get_refcnt(py) == 1;
                     if e1_free && e2_free {
                         py_array = e1.clone_ref(py).into_bound(py);
                         if self.allocation_pool.len() > *allocation_pool_min_size {
@@ -630,6 +653,33 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                             self.allocation_pool.push(arr.clone().unbind());
                         }
                         py_array = arr;
+                        if let Some(allocation_pool_warning_size) = allocation_pool_warning_size {
+                            if pool_size > *allocation_pool_warning_size {
+                                if pool_size % 100 == 0 {
+                                    let recursion_depth = env::var(
+                                        "PYANY_SERDE_NUMPY_ALLOCATION_WARNING_RECUSION_DEPTH",
+                                    )
+                                    .map(|v| v.parse::<usize>().unwrap_or(5))
+                                    .unwrap_or(5);
+                                    println!("Warning: the allocation pool for this Numpy PyAny serde instance is currently {pool_size}, which is larger than the warning limit set ({allocation_pool_warning_size}). Here is a random element from the allocation pool and a dict of the types of its referrers (and the referrers of those referrers, etc, up to the recursion depth set by PYANY_SERDE_NUMPY_ALLOCATION_WARNING_RECUSION_DEPTH (5 by default)):");
+                                    let mut total_in_use = 0;
+                                    for item in self.allocation_pool.iter() {
+                                        if item.get_refcnt(py) > 1 {
+                                            total_in_use += 1;
+                                        }
+                                    }
+                                    println!("Number of elements in allocation pool which are currently in use: {total_in_use}");
+                                    let idx = fastrand::usize(..pool_size);
+                                    let e = &self.allocation_pool[idx];
+                                    println!(
+                                        "{}\n\n",
+                                        get_ref_types(e.bind(py), recursion_depth)?
+                                            .repr()?
+                                            .to_string()
+                                    );
+                                }
+                            }
+                        }
                     }
                     unsafe { py_array.as_slice_mut().unwrap().copy_from_slice(&array_vec) };
                 } else {
@@ -650,32 +700,46 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
     }
 }
 
+#[macro_export]
 macro_rules! create_numpy_pyany_serde {
-    ($ty: ty, $config: ident) => {{
+    ($ty: ty, $config: expr) => {{
         let mut allocation_pool = Vec::new();
+        let new_config;
         if let NumpySerdeConfig::STATIC {
-            ref shape,
+            shape,
+            preprocessor_fn,
+            postprocessor_fn,
             allocation_pool_min_size,
             allocation_pool_max_size,
-            ..
+            allocation_pool_warning_size,
         } = $config
         {
+            let allocation_pool_min_size = allocation_pool_min_size.max(2);
             if allocation_pool_max_size.map(|v| v > 0).unwrap_or(true) {
-                let starting_pool_size_min = allocation_pool_min_size.max(2);
-                let starting_pool_size = starting_pool_size_min
-                    .min(allocation_pool_max_size.unwrap_or(starting_pool_size_min));
+                let starting_pool_size = allocation_pool_min_size
+                    .min(allocation_pool_max_size.unwrap_or(allocation_pool_min_size));
                 Python::with_gil(|py| {
                     for _ in 0..starting_pool_size {
-                        let arr: Bound<'_, PyArray<$ty, _>> =
-                            unsafe { PyArrayDyn::new(py, &shape[..], false) };
+                        let arr: Bound<'_, numpy::PyArray<$ty, _>> =
+                            unsafe { numpy::PyArrayDyn::new(py, &shape[..], false) };
                         allocation_pool.push(arr.unbind());
                     }
                 });
             }
-        };
+            new_config = NumpySerdeConfig::STATIC {
+                shape,
+                preprocessor_fn,
+                postprocessor_fn,
+                allocation_pool_min_size,
+                allocation_pool_max_size,
+                allocation_pool_warning_size,
+            };
+        } else {
+            new_config = $config;
+        }
 
         Box::new(NumpySerde::<$ty> {
-            config: $config,
+            config: new_config,
             allocation_pool,
         })
     }};
@@ -792,5 +856,37 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpySerde<T> {
             Some(postprocessor_fn) => (postprocessor_fn.bind(py).call1((array, offset))?, offset),
             None => (array.into_any(), offset),
         })
+    }
+}
+
+static GC: GILOnceCell<Py<PyModule>> = GILOnceCell::new();
+fn get_ref_types<'py>(o: &Bound<'py, PyAny>, recursion: usize) -> PyResult<Bound<'py, PyAny>> {
+    let py = o.py();
+    let gc = GC
+        .get_or_try_init(py, || Ok::<_, PyErr>(py.import("gc")?.unbind()))?
+        .bind(o.py());
+    let referrers = gc
+        .call_method1(intern!(py, "get_referrers"), (o,))?
+        .downcast_into::<PyList>()?;
+    if recursion > 0 {
+        Ok(PyDict::from_sequence(
+            &referrers
+                .iter()
+                .map(|referrer| {
+                    Ok::<_, PyErr>((
+                        referrer.get_type().repr()?.to_string(),
+                        get_ref_types(&referrer, recursion - 1)?,
+                    ))
+                })
+                .collect::<PyResult<Vec<_>>>()?
+                .into_pyobject(py)?,
+        )?
+        .into_any())
+    } else {
+        referrers
+            .iter()
+            .map(|referrer| Ok::<_, PyErr>(referrer.get_type().repr()?.to_string()))
+            .collect::<PyResult<Vec<_>>>()?
+            .into_pyobject(py)
     }
 }
