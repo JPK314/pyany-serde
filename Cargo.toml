@@ -25,9 +25,9 @@ hex = "0.4.3"
 itertools = "0.13.0"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
-numpy = "0.23.0"
+numpy = "0.24.0"
 paste = "1.0.15"
-pyo3 = { version = "0.23.4", features = ["py-clone"] }
+pyo3 = { version = "0.24.2", features = ["py-clone"] }
 raw_sync = "0.1.5"
 shared_memory = "0.12.4"
 strum = "0.27.1"
