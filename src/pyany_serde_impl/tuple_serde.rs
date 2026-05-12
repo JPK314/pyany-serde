@@ -15,7 +15,7 @@ impl PyAnySerde for TupleSerde {
         mut offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        let tuple = obj.downcast::<PyTuple>()?;
+        let tuple = obj.cast::<PyTuple>()?;
         for (pyany_serde, item) in self.item_serdes.iter_mut().zip(tuple.iter()) {
             offset = pyany_serde.append(buf, offset, &item)?;
         }
@@ -28,7 +28,7 @@ impl PyAnySerde for TupleSerde {
         start_addr: Option<usize>,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<()> {
-        let tuple = obj.downcast::<PyTuple>()?;
+        let tuple = obj.cast::<PyTuple>()?;
         for (pyany_serde, item) in self.item_serdes.iter_mut().zip(tuple.iter()) {
             pyany_serde.append_vec(v, start_addr, &item)?;
         }

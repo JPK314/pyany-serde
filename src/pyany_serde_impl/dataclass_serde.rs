@@ -11,12 +11,12 @@ use crate::PyAnySerde;
 
 #[derive(Clone)]
 pub struct DataclassSerde {
-    class: PyObject,
+    class: Py<PyAny>,
     init_strategy: InternalInitStrategy,
     field_serde_kv_list: Vec<(Py<PyString>, Box<dyn PyAnySerde>)>,
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PickleableInitStrategy(pub Option<InitStrategy>);
 
@@ -80,7 +80,7 @@ impl PickleableInitStrategy {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, PartialEq, Display)]
 pub enum InitStrategy {
     ALL {},
@@ -110,7 +110,7 @@ fn get_enum_subclass_before_validator_fn<'py>(
     let py_cls = cls.clone().unbind();
     let func = move |args: &Bound<'_, PyTuple>,
                      _kwargs: Option<&Bound<'_, PyDict>>|
-          -> PyResult<PyObject> {
+          -> PyResult<Py<PyAny>> {
         let py = args.py();
         let data = args.get_item(0)?;
         let cls = py_cls.bind(py);
@@ -202,8 +202,8 @@ impl InitStrategy {
         ))
     }
 
-    pub fn to_json(&self) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
+    pub fn to_json(&self) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| {
             let data = PyDict::new(py);
             data.set_item("type", self.to_string().to_ascii_lowercase())?;
             if let InitStrategy::SOME { kwargs } = self {
@@ -223,26 +223,26 @@ pub enum InternalInitStrategy {
 
 impl DataclassSerde {
     pub fn new(
-        class: PyObject,
+        class: Py<PyAny>,
         init_strategy: InitStrategy,
         field_serde_kv_list: Vec<(Py<PyString>, Box<dyn PyAnySerde>)>,
     ) -> PyResult<Self> {
         let internal_init_strategy = match &init_strategy {
-            InitStrategy::ALL {} => Python::with_gil::<_, PyResult<_>>(|py| {
+            InitStrategy::ALL {} => Python::attach::<_, PyResult<_>>(|py| {
                 let kwargs_kv_list = field_serde_kv_list
                     .iter()
-                    .map(|(field, _)| (field, None::<PyObject>))
+                    .map(|(field, _)| (field, None::<Py<PyAny>>))
                     .collect::<Vec<_>>();
                 let kwargs = PyDict::from_sequence(&kwargs_kv_list.into_pyobject(py)?)?.unbind();
                 Ok(InternalInitStrategy::ALL(kwargs))
             })?,
-            InitStrategy::SOME { kwargs } => Python::with_gil::<_, PyResult<_>>(|py| {
+            InitStrategy::SOME { kwargs } => Python::attach::<_, PyResult<_>>(|py| {
                 let init_field_idxs = kwargs.iter().map(|init_field| field_serde_kv_list.iter().position(|(field, _)| field.to_string() == *init_field).ok_or_else(|| PyValueError::new_err(format!("field name {} provided in InitStrategy_SOME not contained in field_serde_kv_list", init_field)))).collect::<PyResult<HashSet<_>>>()?;
                 let kwargs_kv_list = field_serde_kv_list
                     .iter()
                     .enumerate()
                     .filter(|(idx, _)| init_field_idxs.contains(idx))
-                    .map(|(_, (field, _))| (field, None::<PyObject>))
+                    .map(|(_, (field, _))| (field, None::<Py<PyAny>>))
                     .collect::<Vec<_>>();
                 let kwargs = PyDict::from_sequence(&kwargs_kv_list.into_pyobject(py)?)?.unbind();
                 Ok(InternalInitStrategy::SOME(kwargs, init_field_idxs))

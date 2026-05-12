@@ -7,7 +7,7 @@ use crate::PyAnySerde;
 
 #[derive(Clone)]
 pub struct PythonSerdeSerde {
-    pub python_serde: PyObject,
+    pub python_serde: Py<PyAny>,
 }
 
 impl PyAnySerde for PythonSerdeSerde {
@@ -45,7 +45,7 @@ impl PyAnySerde for PythonSerdeSerde {
             self.python_serde
                 .bind(obj.py())
                 .call_method1(intern!(obj.py(), "get_bytes"), (start_addr, obj))?
-                .downcast::<PyBytes>()?
+                .cast::<PyBytes>()?
                 .as_bytes(),
         );
         Ok(())

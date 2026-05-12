@@ -91,7 +91,7 @@ impl<'a> TryFrom<&'a Py<PyAnySerdeType>> for Box<dyn PyAnySerde> {
     type Error = PyErr;
 
     fn try_from(value: &'a Py<PyAnySerdeType>) -> Result<Self, Self::Error> {
-        Python::with_gil(|py| value.extract::<PyAnySerdeType>(py)?.try_into())
+        Python::attach(|py| value.extract::<PyAnySerdeType>(py)?.try_into())
     }
 }
 
@@ -115,7 +115,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
                 clazz,
                 init_strategy,
                 field_serde_type_dict,
-            } => Python::with_gil::<_, PyResult<_>>(|py| {
+            } => Python::attach::<_, PyResult<_>>(|py| {
                 Ok(Box::new(DataclassSerde::new(
                     clazz.clone_ref(py),
                     init_strategy.clone(),
@@ -132,7 +132,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             PyAnySerdeType::DICT {
                 keys_serde_type,
                 values_serde_type,
-            } => Python::with_gil::<_, PyResult<_>>(|py| {
+            } => Python::attach::<_, PyResult<_>>(|py| {
                 Ok(Box::new(DictSerde {
                     keys_serde: keys_serde_type.bind(py).try_into()?,
                     values_serde: values_serde_type.bind(py).try_into()?,
@@ -153,7 +153,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             }),
             PyAnySerdeType::PICKLE {} => Box::new(PickleSerde::new()?),
             PyAnySerdeType::PYTHONSERDE { python_serde } => {
-                Python::with_gil::<_, PyResult<_>>(|py| {
+                Python::attach::<_, PyResult<_>>(|py| {
                     Ok(Box::new(PythonSerdeSerde {
                         python_serde: python_serde.clone_ref(py),
                     }))
@@ -171,7 +171,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             }),
             PyAnySerdeType::TYPEDDICT {
                 key_serde_type_dict,
-            } => Python::with_gil::<_, PyResult<_>>(|py| {
+            } => Python::attach::<_, PyResult<_>>(|py| {
                 let serde_kv_list = key_serde_type_dict
                     .into_iter()
                     .map(|(key, item_serde_type)| {
@@ -185,7 +185,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             PyAnySerdeType::UNION {
                 option_serde_types,
                 option_choice_fn,
-            } => Python::with_gil::<_, PyResult<_>>(|py| {
+            } => Python::attach::<_, PyResult<_>>(|py| {
                 Ok(Box::new(UnionSerde {
                     option_serdes: option_serde_types
                         .into_iter()
@@ -198,8 +198,10 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
     }
 }
 
-impl<'py> FromPyObject<'py> for Box<dyn PyAnySerde> {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+impl<'py> FromPyObject<'_, 'py> for Box<dyn PyAnySerde> {
+    type Error = PyErr;
+
+    fn extract(ob: Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
         ob.extract::<PyAnySerdeType>()
             .or_else(|_| {
                 ob.extract::<PickleablePyAnySerdeType>()
@@ -223,8 +225,10 @@ impl From<DynPyAnySerdeOption> for Option<Box<dyn PyAnySerde>> {
     }
 }
 
-impl<'py> FromPyObject<'py> for DynPyAnySerdeOption {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+impl<'py> FromPyObject<'_, 'py> for DynPyAnySerdeOption {
+    type Error = PyErr;
+
+    fn extract(ob: Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
         ob.extract::<Option<PyAnySerdeType>>()
             .or_else(|_| {
                 ob.extract::<PickleablePyAnySerdeType>()

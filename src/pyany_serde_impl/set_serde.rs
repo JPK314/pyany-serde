@@ -18,7 +18,7 @@ impl PyAnySerde for SetSerde {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        let set = obj.downcast::<PySet>()?;
+        let set = obj.cast::<PySet>()?;
         let mut offset = append_usize(buf, offset, set.len());
         for item in set.iter() {
             offset = self.items_serde.append(buf, offset, &item)?;
@@ -32,7 +32,7 @@ impl PyAnySerde for SetSerde {
         start_addr: Option<usize>,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<()> {
-        let set = obj.downcast::<PySet>()?;
+        let set = obj.cast::<PySet>()?;
         append_usize_vec(v, set.len());
         for item in set.iter() {
             self.items_serde.append_vec(v, start_addr, &item)?;

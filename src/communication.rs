@@ -119,7 +119,7 @@ pub fn append_python_option<'py, F>(
     py: Python<'py>,
     buf: &mut [u8],
     mut offset: usize,
-    obj_option: &Option<&PyObject>,
+    obj_option: &Option<&Py<PyAny>>,
     serde_option: &mut Option<&mut Box<dyn PyAnySerde>>,
     err: F,
 ) -> PyResult<usize>

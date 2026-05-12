@@ -19,7 +19,7 @@ impl PyAnySerde for DictSerde {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        let dict = obj.downcast::<PyDict>()?;
+        let dict = obj.cast::<PyDict>()?;
         let mut offset = append_usize(buf, offset, dict.len());
         for (key, value) in dict.iter() {
             offset = self.keys_serde.append(buf, offset, &key)?;
@@ -34,7 +34,7 @@ impl PyAnySerde for DictSerde {
         start_addr: Option<usize>,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<()> {
-        let dict = obj.downcast::<PyDict>()?;
+        let dict = obj.cast::<PyDict>()?;
         append_usize_vec(v, dict.len());
         for (key, value) in dict.iter() {
             self.keys_serde.append_vec(v, start_addr, &key)?;

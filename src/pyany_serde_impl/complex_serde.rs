@@ -16,7 +16,7 @@ impl PyAnySerde for ComplexSerde {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        let complex = obj.downcast::<PyComplex>()?;
+        let complex = obj.cast::<PyComplex>()?;
         let mut offset = append_c_double(buf, offset, complex.real());
         offset = append_c_double(buf, offset, complex.imag());
         Ok(offset)
@@ -28,7 +28,7 @@ impl PyAnySerde for ComplexSerde {
         _start_addr: Option<usize>,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<()> {
-        let complex = obj.downcast::<PyComplex>()?;
+        let complex = obj.cast::<PyComplex>()?;
         append_c_double_vec(v, complex.real());
         append_c_double_vec(v, complex.imag());
         Ok(())

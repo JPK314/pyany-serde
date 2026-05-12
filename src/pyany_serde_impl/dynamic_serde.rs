@@ -144,28 +144,28 @@ impl PyAnySerde for DynamicSerde {
                 }
             },
             PythonType::LIST => {
-                let list = obj.downcast::<PyList>()?;
+                let list = obj.cast::<PyList>()?;
                 offset = append_usize(buf, offset, list.len());
                 for item in list.iter() {
                     offset = self.append(buf, offset, &item)?;
                 }
             }
             PythonType::SET => {
-                let set = obj.downcast::<PySet>()?;
+                let set = obj.cast::<PySet>()?;
                 offset = append_usize(buf, offset, set.len());
                 for item in set.iter() {
                     offset = self.append(buf, offset, &item)?;
                 }
             }
             PythonType::TUPLE => {
-                let tuple = obj.downcast::<PyTuple>()?;
+                let tuple = obj.cast::<PyTuple>()?;
                 offset = append_usize(buf, offset, tuple.len());
                 for item in tuple.iter() {
                     offset = self.append(buf, offset, &item)?;
                 }
             }
             PythonType::DICT => {
-                let dict = obj.downcast::<PyDict>()?;
+                let dict = obj.cast::<PyDict>()?;
                 offset = append_usize(buf, offset, dict.len());
                 for (key, value) in dict.iter() {
                     offset = self.append(buf, offset, &key)?;
@@ -239,28 +239,28 @@ impl PyAnySerde for DynamicSerde {
                 }
             },
             PythonType::LIST => {
-                let list = obj.downcast::<PyList>()?;
+                let list = obj.cast::<PyList>()?;
                 append_usize_vec(v, list.len());
                 for item in list.iter() {
                     self.append_vec(v, start_addr, &item)?;
                 }
             }
             PythonType::SET => {
-                let set = obj.downcast::<PyList>()?;
+                let set = obj.cast::<PyList>()?;
                 append_usize_vec(v, set.len());
                 for item in set.iter() {
                     self.append_vec(v, start_addr, &item)?;
                 }
             }
             PythonType::TUPLE => {
-                let tuple = obj.downcast::<PyList>()?;
+                let tuple = obj.cast::<PyList>()?;
                 append_usize_vec(v, tuple.len());
                 for item in tuple.iter() {
                     self.append_vec(v, start_addr, &item)?;
                 }
             }
             PythonType::DICT => {
-                let dict = obj.downcast::<PyDict>()?;
+                let dict = obj.cast::<PyDict>()?;
                 append_usize_vec(v, dict.len());
                 for (key, value) in dict.iter() {
                     self.append_vec(v, start_addr, &key)?;

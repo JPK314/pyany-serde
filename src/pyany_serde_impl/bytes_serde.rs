@@ -16,11 +16,7 @@ impl PyAnySerde for BytesSerde {
         offset: usize,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<usize> {
-        Ok(append_bytes(
-            buf,
-            offset,
-            obj.downcast::<PyBytes>()?.as_bytes(),
-        ))
+        Ok(append_bytes(buf, offset, obj.cast::<PyBytes>()?.as_bytes()))
     }
 
     fn append_vec<'py>(
@@ -29,7 +25,7 @@ impl PyAnySerde for BytesSerde {
         _start_addr: Option<usize>,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<()> {
-        append_bytes_vec(v, obj.downcast::<PyBytes>()?.as_bytes());
+        append_bytes_vec(v, obj.cast::<PyBytes>()?.as_bytes());
         Ok(())
     }
 

@@ -14,7 +14,7 @@ pub struct PickleSerde {
 
 impl PickleSerde {
     pub fn new() -> PyResult<Self> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             Ok(PickleSerde {
                 pickle_dumps: py.import("pickle")?.getattr("dumps")?.unbind(),
                 pickle_loads: py.import("pickle")?.getattr("loads")?.unbind(),
@@ -36,7 +36,7 @@ impl PyAnySerde for PickleSerde {
             self.pickle_dumps
                 .bind(obj.py())
                 .call1((obj,))?
-                .downcast_into::<PyBytes>()?
+                .cast_into::<PyBytes>()?
                 .as_bytes(),
         ))
     }
@@ -52,7 +52,7 @@ impl PyAnySerde for PickleSerde {
             self.pickle_dumps
                 .bind(obj.py())
                 .call1((obj,))?
-                .downcast_into::<PyBytes>()?
+                .cast_into::<PyBytes>()?
                 .as_bytes(),
         );
         Ok(())

@@ -23,7 +23,7 @@ use crate::pyany_serde_impl::{
 };
 
 // This enum is used to store information about a type which is sent between processes to dynamically recover a Box<dyn PyAnySerde>
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PickleablePyAnySerdeType(pub Option<Option<PyAnySerdeType>>);
 
@@ -78,12 +78,12 @@ impl PickleablePyAnySerdeType {
                                     .__getstate__()?[..],
                             );
                         }
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let clazz_py_bytes = py
                                 .import("pickle")?
                                 .getattr("dumps")?
                                 .call1((clazz,))?
-                                .downcast_into::<PyBytes>()?;
+                                .cast_into::<PyBytes>()?;
                             append_bytes_vec(&mut bytes, clazz_py_bytes.as_bytes());
                             Ok(bytes)
                         })?
@@ -93,7 +93,7 @@ impl PickleablePyAnySerdeType {
                         values_serde_type,
                     } => {
                         let mut bytes = vec![4];
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             for py_serde_type in
                                 vec![keys_serde_type, values_serde_type].into_iter()
                             {
@@ -112,7 +112,7 @@ impl PickleablePyAnySerdeType {
                     PyAnySerdeType::INT {} => vec![7],
                     PyAnySerdeType::LIST { items_serde_type } => {
                         let mut bytes = vec![8];
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let serde_type = items_serde_type.extract::<PyAnySerdeType>(py)?;
                             append_bytes_vec(
                                 &mut bytes,
@@ -131,7 +131,7 @@ impl PickleablePyAnySerdeType {
                     }
                     PyAnySerdeType::OPTION { value_serde_type } => {
                         let mut bytes = vec![10];
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let serde_type = value_serde_type.extract::<PyAnySerdeType>(py)?;
                             append_bytes_vec(
                                 &mut bytes,
@@ -144,19 +144,19 @@ impl PickleablePyAnySerdeType {
                     PyAnySerdeType::PICKLE {} => vec![11],
                     PyAnySerdeType::PYTHONSERDE { python_serde } => {
                         let mut bytes = vec![12];
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let python_serde_py_bytes = py
                                 .import("pickle")?
                                 .getattr("dumps")?
                                 .call1((python_serde,))?
-                                .downcast_into::<PyBytes>()?;
+                                .cast_into::<PyBytes>()?;
                             append_bytes_vec(&mut bytes, python_serde_py_bytes.as_bytes());
                             Ok(bytes)
                         })?
                     }
                     PyAnySerdeType::SET { items_serde_type } => {
                         let mut bytes = vec![13];
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let serde_type = items_serde_type.extract::<PyAnySerdeType>(py)?;
                             append_bytes_vec(
                                 &mut bytes,
@@ -207,12 +207,12 @@ impl PickleablePyAnySerdeType {
                                     .__getstate__()?[..],
                             );
                         }
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let option_choice_fn_py_bytes = py
                                 .import("pickle")?
                                 .getattr("dumps")?
                                 .call1((option_choice_fn,))?
-                                .downcast_into::<PyBytes>()?;
+                                .cast_into::<PyBytes>()?;
                             append_bytes_vec(&mut bytes, option_choice_fn_py_bytes.as_bytes());
                             Ok(bytes)
                         })?
@@ -255,7 +255,7 @@ impl PickleablePyAnySerdeType {
                             field_serde_type_dict
                                 .insert(field, pickleable_serde_type.0.unwrap().unwrap());
                         }
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let clazz_bytes;
                             (clazz_bytes, offset) = retrieve_bytes(buf, offset)?;
                             let clazz = py
@@ -270,7 +270,7 @@ impl PickleablePyAnySerdeType {
                             })
                         })?
                     }
-                    4 => Python::with_gil::<_, PyResult<_>>(|py| {
+                    4 => Python::attach::<_, PyResult<_>>(|py| {
                         let keys_serde_type_bytes;
                         (keys_serde_type_bytes, offset) = retrieve_bytes(buf, offset)?;
                         let mut pickleable_keys_serde_type = PickleablePyAnySerdeType(None);
@@ -294,7 +294,7 @@ impl PickleablePyAnySerdeType {
                     5 => PyAnySerdeType::DYNAMIC {},
                     6 => PyAnySerdeType::FLOAT {},
                     7 => PyAnySerdeType::INT {},
-                    8 => Python::with_gil::<_, PyResult<_>>(|py| {
+                    8 => Python::attach::<_, PyResult<_>>(|py| {
                         let serde_type_bytes;
                         (serde_type_bytes, offset) = retrieve_bytes(buf, offset)?;
                         let mut pickleable_serde_type = PickleablePyAnySerdeType(None);
@@ -319,7 +319,7 @@ impl PickleablePyAnySerdeType {
                             config: pickleable_numpy_serde_config.0.unwrap(),
                         }
                     }
-                    10 => Python::with_gil::<_, PyResult<_>>(|py| {
+                    10 => Python::attach::<_, PyResult<_>>(|py| {
                         let serde_type_bytes;
                         (serde_type_bytes, offset) = retrieve_bytes(buf, offset)?;
                         let mut pickleable_serde_type = PickleablePyAnySerdeType(None);
@@ -332,7 +332,7 @@ impl PickleablePyAnySerdeType {
                         })
                     })?,
                     11 => PyAnySerdeType::PICKLE {},
-                    12 => Python::with_gil::<_, PyResult<_>>(|py| {
+                    12 => Python::attach::<_, PyResult<_>>(|py| {
                         let python_serde_bytes;
                         (python_serde_bytes, offset) = retrieve_bytes(buf, offset)?;
                         let python_serde = py
@@ -342,7 +342,7 @@ impl PickleablePyAnySerdeType {
                             .unbind();
                         Ok(PyAnySerdeType::PYTHONSERDE { python_serde })
                     })?,
-                    13 => Python::with_gil::<_, PyResult<_>>(|py| {
+                    13 => Python::attach::<_, PyResult<_>>(|py| {
                         let serde_type_bytes;
                         (serde_type_bytes, offset) = retrieve_bytes(buf, offset)?;
                         let mut pickleable_serde_type = PickleablePyAnySerdeType(None);
@@ -397,7 +397,7 @@ impl PickleablePyAnySerdeType {
                             pickleable_serde_type.__setstate__(serde_type_bytes.to_vec())?;
                             option_serde_types.push(pickleable_serde_type.0.unwrap().unwrap())
                         }
-                        Python::with_gil::<_, PyResult<_>>(|py| {
+                        Python::attach::<_, PyResult<_>>(|py| {
                             let option_choice_fn_bytes;
                             (option_choice_fn_bytes, offset) = retrieve_bytes(buf, offset)?;
                             let option_choice_fn = py.import("pickle")?.getattr("loads")?.call1(
@@ -406,7 +406,7 @@ impl PickleablePyAnySerdeType {
                             Ok(PyAnySerdeType::UNION {
                                 option_serde_types,
                                 option_choice_fn: option_choice_fn
-                                    .downcast_into::<PyFunction>()?
+                                    .cast_into::<PyFunction>()?
                                     .unbind(),
                             })
                         })?
@@ -425,14 +425,14 @@ impl PickleablePyAnySerdeType {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Display, strum_macros::VariantNames)]
 pub enum PyAnySerdeType {
     BOOL {},
     BYTES {},
     COMPLEX {},
     DATACLASS {
-        clazz: PyObject,
+        clazz: Py<PyAny>,
         init_strategy: InitStrategy,
         field_serde_type_dict: BTreeMap<String, PyAnySerdeType>,
     },
@@ -456,7 +456,7 @@ pub enum PyAnySerdeType {
     },
     PICKLE {},
     PYTHONSERDE {
-        python_serde: PyObject,
+        python_serde: Py<PyAny>,
     },
     SET {
         items_serde_type: Py<PyAnySerdeType>,
@@ -505,7 +505,7 @@ fn check_for_unpickling_aux<'py>(data: &Bound<'py, PyAny>) -> PyResult<bool> {
             let mut has_unpickling = false;
             for (_, serde_type_data) in data
                 .get_item("key_serde_type_dict")?
-                .downcast_into::<PyDict>()?
+                .cast_into::<PyDict>()?
                 .iter()
             {
                 has_unpickling |= check_for_unpickling_aux(&serde_type_data)?;
@@ -546,7 +546,7 @@ fn get_before_validator_fn<'py>(
     let py_schema_validator = _schema_validator.clone().unbind();
     let func = move |args: &Bound<'_, PyTuple>,
                      _kwargs: Option<&Bound<'_, PyDict>>|
-          -> PyResult<PyObject> {
+          -> PyResult<Py<PyAny>> {
         // initial setup
         let py = args.py();
         let data = args.get_item(0)?;
@@ -585,7 +585,7 @@ fn get_before_validator_fn<'py>(
                 let mut field_serde_type_dict = BTreeMap::new();
                 for (key, serde_type_data) in data
                     .get_item("field_serde_type_dict")?
-                    .downcast_into::<PyDict>()?
+                    .cast_into::<PyDict>()?
                     .into_iter()
                 {
                     let key = key.extract::<String>()?;
@@ -699,7 +699,7 @@ fn get_before_validator_fn<'py>(
                 let mut key_serde_type_dict = BTreeMap::new();
                 for (key, serde_type_data) in data
                     .get_item("key_serde_type_dict")?
-                    .downcast_into::<PyDict>()?
+                    .cast_into::<PyDict>()?
                     .into_iter()
                 {
                     let key = key.extract::<String>()?;
@@ -738,7 +738,7 @@ fn get_before_validator_fn<'py>(
                             ))
                         })?,
                     ),))?
-                    .downcast_into::<PyFunction>()?
+                    .cast_into::<PyFunction>()?
                     .unbind();
                 PyAnySerdeType::UNION {
                     option_serde_types,
@@ -973,8 +973,8 @@ impl PyAnySerdeType {
         )
     }
 
-    fn to_json(&self) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
+    fn to_json(&self) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| {
             let data = PyDict::new(py);
             data.set_item("type", self.to_string().to_ascii_lowercase())?;
             if let PyAnySerdeType::DATACLASS {

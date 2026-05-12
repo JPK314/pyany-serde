@@ -106,7 +106,7 @@ pub fn retrieve_python_type(bytes: &[u8], offset: usize) -> PyResult<(PythonType
 
 macro_rules! check_numpy {
     ($v: ident, $dtype: ident) => {
-        $v.downcast::<PyArrayDyn<$dtype>>().is_ok()
+        $v.cast::<PyArrayDyn<$dtype>>().is_ok()
     };
 }
 
@@ -201,8 +201,8 @@ mod tests {
 
     #[test]
     fn python_test_detect_python_type_numpy() -> PyResult<()> {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        Python::initialize();
+        Python::attach(|py| {
             let locals = PyDict::new(py);
             py.run(
                 c_str!(

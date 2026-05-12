@@ -6,7 +6,7 @@ use numpy::{Element, PyArrayDyn, PyArrayMethods, PyUntypedArrayMethods};
 use numpy::{IntoPyArray, PyArray};
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
-use pyo3::sync::GILOnceCell;
+use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBytes, PyCFunction, PyDict, PyList, PyTuple, PyType};
 use pyo3::{intern, prelude::*, PyTypeInfo};
 use strum_macros::Display;
@@ -42,15 +42,15 @@ fn retrieve_usize_option(buf: &[u8], mut offset: usize) -> PyResult<(Option<usiz
     }
 }
 
-fn append_python_pkl_option_vec(v: &mut Vec<u8>, obj_option: &Option<PyObject>) -> PyResult<()> {
+fn append_python_pkl_option_vec(v: &mut Vec<u8>, obj_option: &Option<Py<PyAny>>) -> PyResult<()> {
     if let Some(obj) = obj_option {
         append_bool_vec(v, true);
-        Python::with_gil::<_, PyResult<_>>(|py| {
+        Python::attach::<_, PyResult<_>>(|py| {
             let preprocessor_fn_py_bytes = py
                 .import("pickle")?
                 .getattr("dumps")?
                 .call1((obj,))?
-                .downcast_into::<PyBytes>()?;
+                .cast_into::<PyBytes>()?;
             append_bytes_vec(v, preprocessor_fn_py_bytes.as_bytes());
             Ok(())
         })?;
@@ -63,11 +63,11 @@ fn append_python_pkl_option_vec(v: &mut Vec<u8>, obj_option: &Option<PyObject>) 
 fn retrieve_python_pkl_option(
     buf: &[u8],
     mut offset: usize,
-) -> PyResult<(Option<PyObject>, usize)> {
+) -> PyResult<(Option<Py<PyAny>>, usize)> {
     let has_obj;
     (has_obj, offset) = retrieve_bool(buf, offset)?;
     if has_obj {
-        Python::with_gil::<_, PyResult<_>>(|py| {
+        Python::attach::<_, PyResult<_>>(|py| {
             let obj_bytes;
             (obj_bytes, offset) = retrieve_bytes(buf, offset)?;
             Ok((
@@ -85,7 +85,7 @@ fn retrieve_python_pkl_option(
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PickleableNumpySerdeConfig(pub Option<NumpySerdeConfig>);
 
@@ -194,19 +194,19 @@ impl PickleableNumpySerdeConfig {
 }
 
 // TODO: remove preprocessor and postprocessor fns
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Debug, Clone, Display)]
 pub enum NumpySerdeConfig {
     #[pyo3(constructor = (preprocessor_fn = None, postprocessor_fn = None))]
     DYNAMIC {
-        preprocessor_fn: Option<PyObject>,
-        postprocessor_fn: Option<PyObject>,
+        preprocessor_fn: Option<Py<PyAny>>,
+        postprocessor_fn: Option<Py<PyAny>>,
     },
     #[pyo3(constructor = (shape, preprocessor_fn = None, postprocessor_fn = None, allocation_pool_min_size = 0, allocation_pool_max_size = None, allocation_pool_warning_size = Some(10000)))]
     STATIC {
         shape: Vec<usize>,
-        preprocessor_fn: Option<PyObject>,
-        postprocessor_fn: Option<PyObject>,
+        preprocessor_fn: Option<Py<PyAny>>,
+        postprocessor_fn: Option<Py<PyAny>>,
         allocation_pool_min_size: usize,
         allocation_pool_max_size: Option<usize>,
         allocation_pool_warning_size: Option<usize>,
@@ -245,7 +245,7 @@ fn get_enum_subclass_before_validator_fn<'py>(
     let py_cls = cls.clone().unbind();
     let func = move |args: &Bound<'_, PyTuple>,
                      _kwargs: Option<&Bound<'_, PyDict>>|
-          -> PyResult<PyObject> {
+          -> PyResult<Py<PyAny>> {
         let py = args.py();
         let data = args.get_item(0)?;
         let cls = py_cls.bind(py);
@@ -440,8 +440,8 @@ impl NumpySerdeConfig {
         ))
     }
 
-    pub fn to_json(&self) -> PyResult<PyObject> {
-        Python::with_gil(|py| {
+    pub fn to_json(&self) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| {
             let data = PyDict::new(py);
             data.set_item("type", self.to_string().to_ascii_lowercase())?;
             match self {
@@ -718,7 +718,7 @@ macro_rules! create_numpy_pyany_serde {
             if allocation_pool_max_size.map(|v| v > 0).unwrap_or(true) {
                 let starting_pool_size = allocation_pool_min_size
                     .min(allocation_pool_max_size.unwrap_or(allocation_pool_min_size));
-                Python::with_gil(|py| {
+                Python::attach(|py| {
                     for _ in 0..starting_pool_size {
                         let arr: Bound<'_, numpy::PyArray<$ty, _>> =
                             unsafe { numpy::PyArrayDyn::new(py, &shape[..], false) };
@@ -802,9 +802,9 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpySerde<T> {
                 preprocessor_fn
                     .bind(obj.py())
                     .call1((obj,))?
-                    .downcast::<PyArrayDyn<T>>()?,
+                    .cast::<PyArrayDyn<T>>()?,
             ),
-            None => self.append_inner(buf, offset, obj.downcast::<PyArrayDyn<T>>()?),
+            None => self.append_inner(buf, offset, obj.cast::<PyArrayDyn<T>>()?),
         }
     }
 
@@ -829,9 +829,9 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpySerde<T> {
                 preprocessor_fn
                     .bind(obj.py())
                     .call1((obj,))?
-                    .downcast::<PyArrayDyn<T>>()?,
+                    .cast::<PyArrayDyn<T>>()?,
             ),
-            None => self.append_inner_vec(v, start_addr, obj.downcast::<PyArrayDyn<T>>()?),
+            None => self.append_inner_vec(v, start_addr, obj.cast::<PyArrayDyn<T>>()?),
         }
     }
 
@@ -859,7 +859,7 @@ impl<T: Element + AnyBitPattern + NoUninit> PyAnySerde for NumpySerde<T> {
     }
 }
 
-static GC: GILOnceCell<Py<PyModule>> = GILOnceCell::new();
+static GC: PyOnceLock<Py<PyModule>> = PyOnceLock::new();
 fn get_ref_types<'py>(o: &Bound<'py, PyAny>, recursion: usize) -> PyResult<Bound<'py, PyAny>> {
     let py = o.py();
     let gc = GC
@@ -867,7 +867,7 @@ fn get_ref_types<'py>(o: &Bound<'py, PyAny>, recursion: usize) -> PyResult<Bound
         .bind(o.py());
     let referrers = gc
         .call_method1(intern!(py, "get_referrers"), (o,))?
-        .downcast_into::<PyList>()?;
+        .cast_into::<PyList>()?;
     if recursion > 0 {
         Ok(PyDict::from_sequence(
             &referrers

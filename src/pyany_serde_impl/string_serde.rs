@@ -20,7 +20,7 @@ impl PyAnySerde for StringSerde {
         Ok(append_bytes(
             buf,
             offset,
-            obj.downcast::<PyString>()?.to_str()?.as_bytes(),
+            obj.cast::<PyString>()?.to_str()?.as_bytes(),
         ))
     }
 
@@ -30,7 +30,7 @@ impl PyAnySerde for StringSerde {
         _start_addr: Option<usize>,
         obj: &Bound<'py, PyAny>,
     ) -> PyResult<()> {
-        append_bytes_vec(v, obj.downcast::<PyString>()?.to_str()?.as_bytes());
+        append_bytes_vec(v, obj.cast::<PyString>()?.to_str()?.as_bytes());
         Ok(())
     }
 
