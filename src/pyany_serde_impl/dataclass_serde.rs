@@ -143,8 +143,6 @@ fn get_enum_subclass_typed_dict_schema<'py>(
     let typed_dict_field = core_schema.getattr("typed_dict_field")?;
     let str_schema = core_schema.getattr("str_schema")?;
     let list_schema = core_schema.getattr("list_schema")?;
-    let cls_name = cls.name()?.to_string();
-    let (_, enum_subclass) = cls_name.split_once("_").unwrap();
     let typed_dict_fields = PyDict::new(py);
     typed_dict_fields.set_item(
         "type",
@@ -155,7 +153,7 @@ fn get_enum_subclass_typed_dict_schema<'py>(
                     "pattern",
                     vec![
                         "^".to_owned(),
-                        enum_subclass.to_ascii_lowercase(),
+                        cls.name()?.to_string().to_ascii_lowercase(),
                         "$".to_owned(),
                     ]
                     .join("")
