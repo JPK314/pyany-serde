@@ -28,6 +28,8 @@ num-traits = "0.2.19"
 numpy = "0.28.0"
 paste = "1.0.15"
 pyo3 = { version = "0.28.3", features = ["py-clone"] }
+pyo3-stub-gen = { path = "/home/jpk/Coding/GitHub/pyo3-stub-gen/pyo3-stub-gen" }
+pyo3-stub-gen-derive = { path = "/home/jpk/Coding/GitHub/pyo3-stub-gen/pyo3-stub-gen-derive" }
 raw_sync = "0.1.5"
 shared_memory = "0.12.4"
 strum = "0.27.1"

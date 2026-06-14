@@ -9,6 +9,8 @@ use pyo3::exceptions::PyValueError;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBytes, PyCFunction, PyDict, PyList, PyTuple, PyType};
 use pyo3::{intern, prelude::*, PyTypeInfo};
+use pyo3_stub_gen::derive::*;
+use pyo3_stub_gen::inventory::submit;
 use strum_macros::Display;
 
 use crate::communication::{
@@ -85,12 +87,32 @@ fn retrieve_python_pkl_option(
     }
 }
 
+#[gen_stub_pyclass]
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PickleableNumpySerdeConfig(pub Option<NumpySerdeConfig>);
 
+submit! {
+    gen_methods_from_python! {
+        r#"
+        class PickleableNumpySerdeConfig:
+            @overload
+            def __new__(cls) -> PickleableNumpySerdeConfig:
+                """Create an uninitialized instance (should not be used except by unpicklers)"""
+                ...
+
+            @overload
+            def __new__(cls, config: NumpySerdeConfig, /) -> PickleableNumpySerdeConfig:
+                """Create a pickleable version of the provided NumpySerdeConfig class instance."""
+                ...
+        "#
+    }
+}
+
+#[gen_stub_pymethods]
 #[pymethods]
 impl PickleableNumpySerdeConfig {
+    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (*args))]
     fn new<'py>(args: Bound<'py, PyTuple>) -> PyResult<Self> {
@@ -194,6 +216,7 @@ impl PickleableNumpySerdeConfig {
 }
 
 // TODO: remove preprocessor and postprocessor fns
+#[gen_stub_pyclass_complex_enum]
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone, Display)]
 pub enum NumpySerdeConfig {

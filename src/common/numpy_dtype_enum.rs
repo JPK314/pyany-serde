@@ -1,6 +1,9 @@
+use std::collections::{HashMap, HashSet};
+
 use num_derive::{FromPrimitive, ToPrimitive};
-use numpy::{dtype, Element, PyArrayDescr, PyArrayDescrMethods};
+use numpy::{dtype, Element, PyArray, PyArrayDescr, PyArrayDescrMethods};
 use pyo3::{exceptions::PyValueError, intern, prelude::*};
+use pyo3_stub_gen::{PyStubType, TypeInfo};
 use strum_macros::{Display, EnumIter, EnumString};
 
 // Why not just use PyArrayDescr? Because PyArrayDescr doesn't allow for derivation of Debug, PartialEq, or Copy.
@@ -43,7 +46,6 @@ impl<'py> IntoPyObject<'py> for NumpyDtype {
         })
     }
 }
-
 impl<'py> FromPyObject<'_, 'py> for NumpyDtype {
     type Error = PyErr;
 
@@ -79,6 +81,17 @@ impl<'py> FromPyObject<'_, 'py> for NumpyDtype {
                 "Invalid dtype: {}",
                 dtype.repr()?.to_str()?
             )))
+        }
+    }
+}
+
+impl PyStubType for NumpyDtype {
+    fn type_output() -> TypeInfo {
+        TypeInfo {
+            name: "numpy.typing.DTypeLike".into(),
+            source_module: None,
+            import: HashSet::from(["numpy.typing".into()]),
+            type_refs: HashMap::new(),
         }
     }
 }

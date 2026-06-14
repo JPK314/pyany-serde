@@ -9,6 +9,10 @@ use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyBytes, PyCFunction, PyDict, PyFunction, PyTuple, PyType};
 use pyo3::{prelude::*, PyTypeInfo};
+use pyo3_stub_gen::derive::*;
+use pyo3_stub_gen::inventory::submit;
+use pyo3_stub_gen::PyStubType;
+use pyo3_stub_gen::TypeInfo;
 use strum::{IntoEnumIterator, VariantNames};
 use strum_macros::Display;
 
@@ -23,13 +27,32 @@ use crate::pyany_serde_impl::{
 };
 
 // This enum is used to store information about a type which is sent between processes to dynamically recover a Box<dyn PyAnySerde>
+#[gen_stub_pyclass]
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PickleablePyAnySerdeType(pub Option<Option<PyAnySerdeType>>);
 
+submit! {
+    gen_methods_from_python! {
+        r#"
+        class PickleablePyAnySerdeType:
+            @overload
+            def __new__(cls) -> PickleablePyAnySerdeType:
+                """Create an uninitialized instance (should not be used except by unpicklers)"""
+                ...
+
+            @overload
+            def __new__(cls, serde_type: PyAnySerdeType, /) -> PickleablePyAnySerdeType:
+                """Create a pickleable version of the provided PyAnySerdeType class instance."""
+                ...
+        "#
+    }
+}
+
+#[gen_stub_pymethods]
 #[pymethods]
 impl PickleablePyAnySerdeType {
-    // We need a zero-args constructor for compatibility with unpickling
+    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (*args))]
     fn new<'py>(args: Bound<'py, PyTuple>) -> PyResult<Self> {
@@ -211,7 +234,7 @@ impl PickleablePyAnySerdeType {
                             let option_choice_fn_py_bytes = py
                                 .import("pickle")?
                                 .getattr("dumps")?
-                                .call1((option_choice_fn,))?
+                                .call1((option_choice_fn.clone().0,))?
                                 .cast_into::<PyBytes>()?;
                             append_bytes_vec(&mut bytes, option_choice_fn_py_bytes.as_bytes());
                             Ok(bytes)
@@ -405,9 +428,9 @@ impl PickleablePyAnySerdeType {
                             )?;
                             Ok(PyAnySerdeType::UNION {
                                 option_serde_types,
-                                option_choice_fn: option_choice_fn
-                                    .cast_into::<PyFunction>()?
-                                    .unbind(),
+                                option_choice_fn: UnionOptionChoiceFn(
+                                    option_choice_fn.cast_into::<PyFunction>()?.unbind(),
+                                ),
                             })
                         })?
                     }
@@ -425,6 +448,36 @@ impl PickleablePyAnySerdeType {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct UnionOptionChoiceFn(pub Py<PyFunction>);
+
+impl PyStubType for UnionOptionChoiceFn {
+    fn type_output() -> TypeInfo {
+        TypeInfo::with_module("typing.Callable[[typing.Any], int]", "typing".into())
+    }
+}
+
+impl<'py> FromPyObject<'_, 'py> for UnionOptionChoiceFn {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
+        Ok(UnionOptionChoiceFn(Py::from(obj.cast::<PyFunction>()?)))
+    }
+}
+
+impl<'py> IntoPyObject<'py> for &UnionOptionChoiceFn {
+    type Target = PyFunction;
+
+    type Output = Bound<'py, PyFunction>;
+
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(self.clone().0.into_bound(py))
+    }
+}
+
+#[gen_stub_pyclass_complex_enum]
 #[pyclass(from_py_object)]
 #[derive(Debug, Clone, Display, strum_macros::VariantNames)]
 pub enum PyAnySerdeType {
@@ -470,7 +523,7 @@ pub enum PyAnySerdeType {
     },
     UNION {
         option_serde_types: Vec<PyAnySerdeType>,
-        option_choice_fn: Py<PyFunction>,
+        option_choice_fn: UnionOptionChoiceFn,
     },
 }
 
@@ -742,7 +795,7 @@ fn get_before_validator_fn<'py>(
                     .unbind();
                 PyAnySerdeType::UNION {
                     option_serde_types,
-                    option_choice_fn,
+                    option_choice_fn: UnionOptionChoiceFn(option_choice_fn),
                 }
             }
             v => Err(PyValueError::new_err(format!("Unexpected type: {v}")))?,
@@ -753,6 +806,7 @@ fn get_before_validator_fn<'py>(
     PyCFunction::new_closure(_py, None, None, func)
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyAnySerdeType {
     fn as_pickleable<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {

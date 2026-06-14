@@ -4,6 +4,8 @@ use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyCFunction, PyDict, PyString, PyTuple, PyType};
 use pyo3::{prelude::*, PyTypeInfo};
+use pyo3_stub_gen::derive::*;
+use pyo3_stub_gen::inventory::submit;
 use strum_macros::Display;
 
 use crate::communication::{append_string_vec, retrieve_string, retrieve_usize};
@@ -16,12 +18,32 @@ pub struct DataclassSerde {
     field_serde_kv_list: Vec<(Py<PyString>, Box<dyn PyAnySerde>)>,
 }
 
+#[gen_stub_pyclass]
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct PickleableInitStrategy(pub Option<InitStrategy>);
 
+submit! {
+    gen_methods_from_python! {
+        r#"
+        class PickleableInitStrategy:
+            @overload
+            def __new__(cls) -> PickleableInitStrategy:
+                """Create an uninitialized instance (should not be used except by unpicklers)"""
+                ...
+
+            @overload
+            def __new__(cls, init_strategy: InitStrategy, /) -> PickleableInitStrategy:
+                """Create a pickleable version of the provided InitStrategy class instance."""
+                ...
+        "#
+    }
+}
+
+#[gen_stub_pymethods]
 #[pymethods]
 impl PickleableInitStrategy {
+    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (*args))]
     fn new<'py>(args: Bound<'py, PyTuple>) -> PyResult<Self> {
@@ -80,6 +102,7 @@ impl PickleableInitStrategy {
     }
 }
 
+#[gen_stub_pyclass_complex_enum]
 #[pyclass(from_py_object)]
 #[derive(Clone, Debug, PartialEq, Display)]
 pub enum InitStrategy {

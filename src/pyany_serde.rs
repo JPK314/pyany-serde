@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use dyn_clone::{clone_trait_object, DynClone};
+use pyo3_stub_gen::{PyStubType, TypeInfo};
 
 use crate::communication::{append_bool, append_bool_vec, retrieve_bool};
 use crate::pyany_serde_impl::{
@@ -185,13 +186,13 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             PyAnySerdeType::UNION {
                 option_serde_types,
                 option_choice_fn,
-            } => Python::attach::<_, PyResult<_>>(|py| {
+            } => Python::attach::<_, PyResult<_>>(|_| {
                 Ok(Box::new(UnionSerde {
                     option_serdes: option_serde_types
                         .into_iter()
                         .map(|item| item.try_into())
                         .collect::<PyResult<_>>()?,
-                    option_choice_fn: option_choice_fn.clone_ref(py),
+                    option_choice_fn: option_choice_fn.clone().0,
                 }))
             })?,
         })
@@ -208,6 +209,15 @@ impl<'py> FromPyObject<'_, 'py> for Box<dyn PyAnySerde> {
                     .map(|v| v.0.unwrap().unwrap())
             })?
             .try_into()
+    }
+}
+
+impl PyStubType for Box<dyn PyAnySerde> {
+    fn type_output() -> TypeInfo {
+        PyAnySerdeType::type_output()
+    }
+    fn type_input() -> TypeInfo {
+        PyAnySerdeType::type_input()
     }
 }
 
@@ -243,5 +253,14 @@ impl<'py> FromPyObject<'_, 'py> for DynPyAnySerdeOption {
                     })
                     .unwrap_or(Ok(DynPyAnySerdeOption::None))
             })?
+    }
+}
+
+impl PyStubType for DynPyAnySerdeOption {
+    fn type_output() -> TypeInfo {
+        Option::<PyAnySerdeType>::type_output()
+    }
+    fn type_input() -> TypeInfo {
+        Option::<PyAnySerdeType>::type_input()
     }
 }
