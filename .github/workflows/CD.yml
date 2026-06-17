@@ -2,7 +2,7 @@ name: Publish Crate
 
 on:
   push:
-    tags: [ 'v*.*.*' ]
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
@@ -49,10 +49,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-          cache: 'pip'
-          cache-dependency-path: '**/test_requirements.txt'
+          cache: "pip"
+          cache-dependency-path: "**/test_requirements.txt"
       - run: pip install -r test_requirements.txt
-      - name: 'Build and test'
+      - name: "Build and test"
         run: cargo nextest run --workspace --all-targets
 
   musllinux:
@@ -75,10 +75,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-          cache: 'pip'
-          cache-dependency-path: '**/test_requirements.txt'
+          cache: "pip"
+          cache-dependency-path: "**/test_requirements.txt"
       - run: pip install -r test_requirements.txt
-      - name: 'Build and test'
+      - name: "Build and test"
         run: cargo nextest run --workspace --all-targets
 
   windows:
@@ -88,7 +88,7 @@ jobs:
         platform:
           - runner: windows-latest
             target: x64
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -97,10 +97,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.platform.target }}
-          cache: 'pip'
-          cache-dependency-path: '**/test_requirements.txt'
+          cache: "pip"
+          cache-dependency-path: "**/test_requirements.txt"
       - run: pip install -r test_requirements.txt
-      - name: 'Build and test'
+      - name: "Build and test"
         run: cargo nextest run --workspace --all-targets
 
   macos:
@@ -117,10 +117,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-          cache: 'pip'
-          cache-dependency-path: '**/test_requirements.txt'
+          cache: "pip"
+          cache-dependency-path: "**/test_requirements.txt"
       - run: pip install -r test_requirements.txt
-      - name: 'Build and test'
+      - name: "Build and test"
         run: cargo nextest run --workspace --all-targets
 
   crates_io_publish:
