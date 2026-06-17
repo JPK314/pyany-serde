@@ -426,92 +426,101 @@ impl NumpySerdeConfig {
             let union_list = create_union!(handler, py, DYNAMIC, STATIC)?;
             return core_schema.call_method1("union_schema", (union_list,));
         }
-        let python_schema = core_schema.getattr("is_instance_schema")?.call1((cls,))?;
-        core_schema.getattr("json_or_python_schema")?.call1((
-            core_schema.getattr("chain_schema")?.call1((vec![
-                get_enum_subclass_typed_dict_schema(cls, &core_schema)?,
-                core_schema
-                    .getattr("no_info_before_validator_function")?
-                    .call1((get_enum_subclass_before_validator_fn(cls)?, &python_schema))?,
-            ],))?,
-            python_schema,
-        ))
+        let numpy_serde_is_instance_schema =
+            core_schema.getattr("is_instance_schema")?.call1((cls,))?;
+        let numpy_serde_json_schema = core_schema.getattr("chain_schema")?.call1((vec![
+            get_enum_subclass_typed_dict_schema(cls, &core_schema)?,
+            core_schema
+                .getattr("no_info_before_validator_function")?
+                .call1((
+                    get_enum_subclass_before_validator_fn(cls)?,
+                    &numpy_serde_is_instance_schema,
+                ))?,
+        ],))?;
+        let numpy_serde_python_schema = core_schema.call_method1(
+            "union_schema",
+            (vec![
+                &numpy_serde_is_instance_schema,
+                &numpy_serde_json_schema,
+            ],),
+        )?;
+        core_schema
+            .getattr("json_or_python_schema")?
+            .call1((numpy_serde_json_schema, numpy_serde_python_schema))
     }
 
-    pub fn to_json(&self) -> PyResult<Py<PyAny>> {
-        Python::attach(|py| {
-            let data = PyDict::new(py);
-            data.set_item("type", self.to_string().to_ascii_lowercase())?;
-            match self {
-                NumpySerdeConfig::DYNAMIC {
-                    preprocessor_fn,
-                    postprocessor_fn,
-                } => {
-                    let preprocessor_fn_pkl = preprocessor_fn
-                        .as_ref()
-                        .map(|preprocessor_fn| {
-                            Ok::<_, PyErr>(
-                                py.import("pickle")?
-                                    .getattr("dumps")?
-                                    .call1((preprocessor_fn,))?
-                                    .call_method0("hex")?,
-                            )
-                        })
-                        .transpose()?;
-                    data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
-                    let postprocessor_fn_pkl = postprocessor_fn
-                        .as_ref()
-                        .map(|postprocessor_fn| {
-                            Ok::<_, PyErr>(
-                                py.import("pickle")?
-                                    .getattr("dumps")?
-                                    .call1((postprocessor_fn,))?
-                                    .call_method0("hex")?,
-                            )
-                        })
-                        .transpose()?;
-                    data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
-                }
-                NumpySerdeConfig::STATIC {
-                    preprocessor_fn,
-                    postprocessor_fn,
-                    shape,
-                    allocation_pool_min_size,
-                    allocation_pool_max_size,
-                    allocation_pool_warning_size,
-                } => {
-                    let preprocessor_fn_pkl = preprocessor_fn
-                        .as_ref()
-                        .map(|preprocessor_fn| {
-                            Ok::<_, PyErr>(
-                                py.import("pickle")?
-                                    .getattr("dumps")?
-                                    .call1((preprocessor_fn,))?
-                                    .call_method0("hex")?,
-                            )
-                        })
-                        .transpose()?;
-                    data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
-                    let postprocessor_fn_pkl = postprocessor_fn
-                        .as_ref()
-                        .map(|postprocessor_fn| {
-                            Ok::<_, PyErr>(
-                                py.import("pickle")?
-                                    .getattr("dumps")?
-                                    .call1((postprocessor_fn,))?
-                                    .call_method0("hex")?,
-                            )
-                        })
-                        .transpose()?;
-                    data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
-                    data.set_item("shape", shape)?;
-                    data.set_item("allocation_pool_min_size", allocation_pool_min_size)?;
-                    data.set_item("allocation_pool_max_size", allocation_pool_max_size)?;
-                    data.set_item("allocation_pool_warning_size", allocation_pool_warning_size)?;
-                }
+    pub fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("type", self.to_string().to_ascii_lowercase())?;
+        match self {
+            NumpySerdeConfig::DYNAMIC {
+                preprocessor_fn,
+                postprocessor_fn,
+            } => {
+                let preprocessor_fn_pkl = preprocessor_fn
+                    .as_ref()
+                    .map(|preprocessor_fn| {
+                        Ok::<_, PyErr>(
+                            py.import("pickle")?
+                                .getattr("dumps")?
+                                .call1((preprocessor_fn,))?
+                                .call_method0("hex")?,
+                        )
+                    })
+                    .transpose()?;
+                data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
+                let postprocessor_fn_pkl = postprocessor_fn
+                    .as_ref()
+                    .map(|postprocessor_fn| {
+                        Ok::<_, PyErr>(
+                            py.import("pickle")?
+                                .getattr("dumps")?
+                                .call1((postprocessor_fn,))?
+                                .call_method0("hex")?,
+                        )
+                    })
+                    .transpose()?;
+                data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
             }
-            Ok(data.into_any().unbind())
-        })
+            NumpySerdeConfig::STATIC {
+                preprocessor_fn,
+                postprocessor_fn,
+                shape,
+                allocation_pool_min_size,
+                allocation_pool_max_size,
+                allocation_pool_warning_size,
+            } => {
+                let preprocessor_fn_pkl = preprocessor_fn
+                    .as_ref()
+                    .map(|preprocessor_fn| {
+                        Ok::<_, PyErr>(
+                            py.import("pickle")?
+                                .getattr("dumps")?
+                                .call1((preprocessor_fn,))?
+                                .call_method0("hex")?,
+                        )
+                    })
+                    .transpose()?;
+                data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
+                let postprocessor_fn_pkl = postprocessor_fn
+                    .as_ref()
+                    .map(|postprocessor_fn| {
+                        Ok::<_, PyErr>(
+                            py.import("pickle")?
+                                .getattr("dumps")?
+                                .call1((postprocessor_fn,))?
+                                .call_method0("hex")?,
+                        )
+                    })
+                    .transpose()?;
+                data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
+                data.set_item("shape", shape)?;
+                data.set_item("allocation_pool_min_size", allocation_pool_min_size)?;
+                data.set_item("allocation_pool_max_size", allocation_pool_max_size)?;
+                data.set_item("allocation_pool_warning_size", allocation_pool_warning_size)?;
+            }
+        }
+        Ok(data.into_any().unbind())
     }
 }
 

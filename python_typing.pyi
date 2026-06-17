@@ -16,17 +16,33 @@ from typing import (
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema
-from typing_extensions import override
+
+from ...pyany_serde.python_serde import PythonSerde
 
 if TYPE_CHECKING:
-    import numpy
+    import numpy as np
+    from numpy import dtype
     from numpy.typing import NDArray
 
     from ..pyany_serde import InitStrategy, NumpySerdeConfig, PyAnySerdeType
 
-    DType = TypeVar("DType", bound=numpy.generic, covariant=True)
+    DType = TypeVar(
+        "DType",
+        bound=np.int8
+        | np.uint8
+        | np.int16
+        | np.uint16
+        | np.int32
+        | np.uint32
+        | np.int64
+        | np.uint64
+        | np.float32
+        | np.float64,
+    )
 else:
-    DType = TypeVar("DType", covariant=True)
+    DType = TypeVar("DType")
+    class dtype(Generic[DType]):
+        pass
 
     class NDArray(Generic[DType]):
         pass
@@ -38,6 +54,7 @@ __all__ = [
     "PickleableNumpySerdeConfig",
     "PyAnySerdeType",
     "PickleablePyAnySerdeType",
+    "PythonSerde",
 ]
 
 T_co = TypeVar("T_co", covariant=True)
@@ -160,34 +177,6 @@ class PickleableNumpySerdeConfig:
     def __getstate__(self) -> list[int]: ...
     def __setstate__(self, state: Sequence[int]) -> None: ...
 
-class PythonSerde(Generic[T]):
-    def append(self, buf: bytes, offset: int, obj: T) -> int:
-        """
-        Appends bytes of obj to buf starting at offset.
-        :param buf: a memoryview to write into (DO NOT hold a reference to this memory view after this function ends!)
-        :param offset: an offset into the memory view to start writing
-        :param obj: the obj to write as bytes
-        :return: new offset after appending bytes
-        """
-        raise NotImplementedError
-
-    def get_bytes(self, start_addr: int | None, obj: T) -> bytes:
-        """
-        :param start_addr: the starting address for where the returned bytes will be written. May be None in contexts where there is no guaranteed start address.
-        :param obj: the obj to write as bytes
-        :return: bytes for obj
-        """
-        raise NotImplementedError
-
-    def retrieve(self, buf: bytes, offset: int) -> tuple[T, int]:
-        """
-        Retrieves obj encoded using self.append or self.get_bytes from the buffer starting at offset.
-        :param buf: a memoryview to read from (DO NOT hold a reference to this memory view after this function ends!)
-        :param offset: an offset into the memory view to start reading
-        :return: Tuple of obj and the offset into the memory view after retrieving obj
-        """
-        raise NotImplementedError
-
 class PyAnySerdeType(Generic[T_co]):
     def as_pickleable(self) -> PickleablePyAnySerdeType[T_co]: ...
     @classmethod
@@ -300,7 +289,7 @@ class PyAnySerdeType(Generic[T_co]):
         @property
         def config(self) -> NumpySerdeConfig: ...
         def __new__(
-            cls, dtype: DType, config: NumpySerdeConfig = ...
+            cls, dtype: type[DType], config: NumpySerdeConfig = ...
         ) -> PyAnySerdeType.NUMPY[DType]: ...
 
     @final
@@ -403,3 +392,28 @@ class PickleablePyAnySerdeType(Generic[T_co]):
 
     def __getstate__(self) -> list[int]: ...
     def __setstate__(self, state: Sequence[int]) -> None: ...
+
+class PythonSerde(Generic[T]):
+    def append(self, buf: bytes, offset: int, obj: T) -> int:
+        """
+        Appends bytes of obj to buf starting at offset.
+        :param buf: a memoryview to write into (DO NOT hold a reference to this memory view after this function ends!)
+        :param offset: an offset into the memory view to start writing
+        :param obj: the obj to write as bytes
+        :return: new offset after appending bytes
+        """
+
+    def get_bytes(self, start_addr: int | None, obj: T) -> bytes:
+        """
+        :param start_addr: the starting address for where the returned bytes will be written. May be None in contexts where there is no guaranteed start address.
+        :param obj: the obj to write as bytes
+        :return: bytes for obj
+        """
+
+    def retrieve(self, buf: bytes, offset: int) -> tuple[T, int]:
+        """
+        Retrieves obj encoded using self.append or self.get_bytes from the buffer starting at offset.
+        :param buf: a memoryview to read from (DO NOT hold a reference to this memory view after this function ends!)
+        :param offset: an offset into the memory view to start reading
+        :return: Tuple of obj and the offset into the memory view after retrieving obj
+        """

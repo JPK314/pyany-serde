@@ -7,6 +7,8 @@ use std::str::FromStr;
 use num_traits::{FromPrimitive, ToPrimitive};
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
+use pyo3::types::PyGenericAlias;
+use pyo3::types::PyList;
 use pyo3::types::{PyBytes, PyCFunction, PyDict, PyFunction, PyTuple, PyType};
 use pyo3::{prelude::*, PyTypeInfo};
 use strum::{IntoEnumIterator, VariantNames};
@@ -23,7 +25,7 @@ use crate::pyany_serde_impl::{
 };
 
 // This enum is used to store information about a type which is sent between processes to dynamically recover a Box<dyn PyAnySerde>
-#[pyclass(from_py_object)]
+#[pyclass(generic, from_py_object)]
 #[derive(Clone)]
 pub struct PickleablePyAnySerdeType(pub Option<Option<PyAnySerdeType>>);
 
@@ -753,12 +755,41 @@ fn get_before_validator_fn<'py>(
     PyCFunction::new_closure(_py, None, None, func)
 }
 
+#[pyclass]
+pub enum MyEnum {
+    Var1 { x: u8 },
+    Var2 {},
+}
+
+#[pymethods]
+impl MyEnum {
+    // python generics support
+    #[classmethod]
+    #[pyo3(signature = (key, /))]
+    fn __class_getitem__<'py>(
+        cls: &Bound<'py, PyType>,
+        key: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        Ok(PyGenericAlias::new(cls.py(), cls.as_any(), key)?.into_any())
+    }
+}
+
 #[pymethods]
 impl PyAnySerdeType {
     fn as_pickleable<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         Ok(PickleablePyAnySerdeType(Some(Some(self.clone())))
             .into_pyobject(py)?
             .into_any())
+    }
+
+    // python generics support
+    #[classmethod]
+    #[pyo3(signature = (key, /))]
+    fn __class_getitem__<'py>(
+        cls: &Bound<'py, PyType>,
+        key: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        Ok(PyGenericAlias::new(cls.py(), cls.as_any(), key)?.into_any())
     }
 
     // pydantic methods
@@ -935,34 +966,38 @@ impl PyAnySerdeType {
                 &vec![("ref", "pyany_serde_type_schema")].into_pyobject(py)?,
             )?),
         )?;
-
-        let pyany_serde_type_python_schema =
+        let pyany_serde_type_is_instance_schema =
             core_schema.call_method1("is_instance_schema", (PyAnySerdeType::type_object(py),))?;
+        let pyany_serde_type_json_schema = core_schema.call_method1(
+            "chain_schema",
+            (vec![
+                core_schema.call_method1(
+                    "no_info_before_validator_function",
+                    (
+                        wrap_pyfunction!(check_for_unpickling, py)?,
+                        any_schema.call0()?,
+                    ),
+                )?,
+                pyany_serde_type_union_schema.clone(),
+                core_schema.call_method1(
+                    "no_info_before_validator_function",
+                    (
+                        get_before_validator_fn(&handler, &schema_validator)?,
+                        &pyany_serde_type_is_instance_schema,
+                    ),
+                )?,
+            ],),
+        )?;
+        let pyany_serde_type_python_schema = core_schema.call_method1(
+            "union_schema",
+            (vec![
+                &pyany_serde_type_is_instance_schema,
+                &pyany_serde_type_json_schema,
+            ],),
+        )?;
         let pyany_serde_type_json_or_python_schema = core_schema.call_method1(
             "json_or_python_schema",
-            (
-                core_schema.call_method1(
-                    "chain_schema",
-                    (vec![
-                        core_schema.call_method1(
-                            "no_info_before_validator_function",
-                            (
-                                wrap_pyfunction!(check_for_unpickling, py)?,
-                                any_schema.call0()?,
-                            ),
-                        )?,
-                        pyany_serde_type_union_schema.clone(),
-                        core_schema.call_method1(
-                            "no_info_before_validator_function",
-                            (
-                                get_before_validator_fn(&handler, &schema_validator)?,
-                                &pyany_serde_type_python_schema,
-                            ),
-                        )?,
-                    ],),
-                )?,
-                pyany_serde_type_python_schema,
-            ),
+            (pyany_serde_type_json_schema, pyany_serde_type_python_schema),
         )?;
         core_schema.call_method(
             "definitions_schema",
@@ -973,110 +1008,116 @@ impl PyAnySerdeType {
         )
     }
 
-    fn to_json(&self) -> PyResult<Py<PyAny>> {
-        Python::attach(|py| {
-            let data = PyDict::new(py);
-            data.set_item("type", self.to_string().to_ascii_lowercase())?;
-            if let PyAnySerdeType::DATACLASS {
-                clazz,
-                init_strategy,
-                field_serde_type_dict,
-            } = self
-            {
-                data.set_item(
-                    "dataclass_pkl",
-                    py.import("pickle")?
-                        .getattr("dumps")?
-                        .call1((clazz,))?
-                        .call_method0("hex")?,
-                )?;
-                data.set_item("init_strategy", init_strategy.to_json()?)?;
-                data.set_item(
-                    "field_serde_type_dict",
-                    field_serde_type_dict
-                        .iter()
-                        .map(|(key, field_serde_type)| Ok((key, field_serde_type.to_json()?)))
-                        .collect::<PyResult<BTreeMap<_, _>>>()?,
-                )?;
-            } else if let PyAnySerdeType::DICT {
-                keys_serde_type,
-                values_serde_type,
-            } = self
-            {
-                data.set_item(
-                    "keys_serde_type",
-                    keys_serde_type.extract::<PyAnySerdeType>(py)?.to_json()?,
-                )?;
-                data.set_item(
-                    "values_serde_type",
-                    values_serde_type.extract::<PyAnySerdeType>(py)?.to_json()?,
-                )?;
-            } else if let PyAnySerdeType::LIST { items_serde_type } = self {
-                data.set_item(
-                    "items_serde_type",
-                    items_serde_type.extract::<PyAnySerdeType>(py)?.to_json()?,
-                )?;
-            } else if let PyAnySerdeType::NUMPY { dtype, config } = self {
-                data.set_item("dtype", dtype.to_string())?;
-                data.set_item("config", config.to_json()?)?;
-            } else if let PyAnySerdeType::OPTION { value_serde_type } = self {
-                data.set_item(
-                    "value_serde_type",
-                    value_serde_type.extract::<PyAnySerdeType>(py)?.to_json()?,
-                )?;
-            } else if let PyAnySerdeType::PYTHONSERDE { python_serde } = self {
-                data.set_item(
-                    "python_serde_pkl",
-                    py.import("pickle")?
-                        .getattr("dumps")?
-                        .call1((python_serde,))?
-                        .call_method0("hex")?,
-                )?;
-            } else if let PyAnySerdeType::SET { items_serde_type } = self {
-                data.set_item(
-                    "items_serde_type",
-                    items_serde_type.extract::<PyAnySerdeType>(py)?.to_json()?,
-                )?;
-            } else if let PyAnySerdeType::TUPLE { item_serde_types } = self {
-                data.set_item(
-                    "item_serde_types",
-                    item_serde_types
-                        .iter()
-                        .map(|item_serde_type| item_serde_type.to_json())
-                        .collect::<PyResult<Vec<_>>>()?,
-                )?;
-            } else if let PyAnySerdeType::TYPEDDICT {
-                key_serde_type_dict,
-            } = self
-            {
-                data.set_item(
-                    "key_serde_type_dict",
-                    key_serde_type_dict
-                        .iter()
-                        .map(|(key, field_serde_type)| Ok((key, field_serde_type.to_json()?)))
-                        .collect::<PyResult<BTreeMap<_, _>>>()?,
-                )?;
-            } else if let PyAnySerdeType::UNION {
-                option_serde_types,
-                option_choice_fn,
-            } = self
-            {
-                data.set_item(
-                    "option_serde_types",
-                    option_serde_types
-                        .iter()
-                        .map(|item_serde_type| item_serde_type.to_json())
-                        .collect::<PyResult<Vec<_>>>()?,
-                )?;
-                data.set_item(
-                    "option_choice_fn_pkl",
-                    py.import("pickle")?
-                        .getattr("dumps")?
-                        .call1((option_choice_fn,))?
-                        .call_method0("hex")?,
-                )?;
-            }
-            Ok(data.into_any().unbind())
-        })
+    fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("type", self.to_string().to_ascii_lowercase())?;
+        if let PyAnySerdeType::DATACLASS {
+            clazz,
+            init_strategy,
+            field_serde_type_dict,
+        } = self
+        {
+            data.set_item(
+                "dataclass_pkl",
+                py.import("pickle")?
+                    .getattr("dumps")?
+                    .call1((clazz,))?
+                    .call_method0("hex")?,
+            )?;
+            data.set_item("init_strategy", init_strategy.to_json(py)?)?;
+            data.set_item(
+                "field_serde_type_dict",
+                field_serde_type_dict
+                    .iter()
+                    .map(|(key, field_serde_type)| Ok((key, field_serde_type.to_json(py)?)))
+                    .collect::<PyResult<BTreeMap<_, _>>>()?,
+            )?;
+        } else if let PyAnySerdeType::DICT {
+            keys_serde_type,
+            values_serde_type,
+        } = self
+        {
+            data.set_item(
+                "keys_serde_type",
+                keys_serde_type.extract::<PyAnySerdeType>(py)?.to_json(py)?,
+            )?;
+            data.set_item(
+                "values_serde_type",
+                values_serde_type
+                    .extract::<PyAnySerdeType>(py)?
+                    .to_json(py)?,
+            )?;
+        } else if let PyAnySerdeType::LIST { items_serde_type } = self {
+            data.set_item(
+                "items_serde_type",
+                items_serde_type
+                    .extract::<PyAnySerdeType>(py)?
+                    .to_json(py)?,
+            )?;
+        } else if let PyAnySerdeType::NUMPY { dtype, config } = self {
+            data.set_item("dtype", dtype.to_string())?;
+            data.set_item("config", config.to_json(py)?)?;
+        } else if let PyAnySerdeType::OPTION { value_serde_type } = self {
+            data.set_item(
+                "value_serde_type",
+                value_serde_type
+                    .extract::<PyAnySerdeType>(py)?
+                    .to_json(py)?,
+            )?;
+        } else if let PyAnySerdeType::PYTHONSERDE { python_serde } = self {
+            data.set_item(
+                "python_serde_pkl",
+                py.import("pickle")?
+                    .getattr("dumps")?
+                    .call1((python_serde,))?
+                    .call_method0("hex")?,
+            )?;
+        } else if let PyAnySerdeType::SET { items_serde_type } = self {
+            data.set_item(
+                "items_serde_type",
+                items_serde_type
+                    .extract::<PyAnySerdeType>(py)?
+                    .to_json(py)?,
+            )?;
+        } else if let PyAnySerdeType::TUPLE { item_serde_types } = self {
+            data.set_item(
+                "item_serde_types",
+                item_serde_types
+                    .iter()
+                    .map(|item_serde_type| item_serde_type.to_json(py))
+                    .collect::<PyResult<Vec<_>>>()?,
+            )?;
+        } else if let PyAnySerdeType::TYPEDDICT {
+            key_serde_type_dict,
+        } = self
+        {
+            data.set_item(
+                "key_serde_type_dict",
+                key_serde_type_dict
+                    .iter()
+                    .map(|(key, field_serde_type)| Ok((key, field_serde_type.to_json(py)?)))
+                    .collect::<PyResult<BTreeMap<_, _>>>()?,
+            )?;
+        } else if let PyAnySerdeType::UNION {
+            option_serde_types,
+            option_choice_fn,
+        } = self
+        {
+            data.set_item(
+                "option_serde_types",
+                option_serde_types
+                    .iter()
+                    .map(|item_serde_type| item_serde_type.to_json(py))
+                    .collect::<PyResult<Vec<_>>>()?,
+            )?;
+            data.set_item(
+                "option_choice_fn_pkl",
+                py.import("pickle")?
+                    .getattr("dumps")?
+                    .call1((option_choice_fn,))?
+                    .call_method0("hex")?,
+            )?;
+        }
+        Ok(data.into_any().unbind())
     }
 }

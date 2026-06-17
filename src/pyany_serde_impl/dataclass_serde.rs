@@ -188,27 +188,36 @@ impl InitStrategy {
             let union_list = create_union!(handler, py, ALL, SOME, NONE)?;
             return core_schema.call_method1("union_schema", (union_list,));
         }
-        let python_schema = core_schema.getattr("is_instance_schema")?.call1((cls,))?;
-        core_schema.getattr("json_or_python_schema")?.call1((
-            core_schema.getattr("chain_schema")?.call1((vec![
-                get_enum_subclass_typed_dict_schema(cls, &core_schema)?,
-                core_schema
-                    .getattr("no_info_before_validator_function")?
-                    .call1((get_enum_subclass_before_validator_fn(cls)?, &python_schema))?,
-            ],))?,
-            python_schema,
-        ))
+        let init_strategy_is_instance_schema =
+            core_schema.getattr("is_instance_schema")?.call1((cls,))?;
+        let init_strategy_json_schema = core_schema.getattr("chain_schema")?.call1((vec![
+            get_enum_subclass_typed_dict_schema(cls, &core_schema)?,
+            core_schema
+                .getattr("no_info_before_validator_function")?
+                .call1((
+                    get_enum_subclass_before_validator_fn(cls)?,
+                    &init_strategy_is_instance_schema,
+                ))?,
+        ],))?;
+        let init_strategy_python_schema = core_schema.call_method1(
+            "union_schema",
+            (vec![
+                &init_strategy_is_instance_schema,
+                &init_strategy_json_schema,
+            ],),
+        )?;
+        core_schema
+            .getattr("json_or_python_schema")?
+            .call1((init_strategy_json_schema, init_strategy_python_schema))
     }
 
-    pub fn to_json(&self) -> PyResult<Py<PyAny>> {
-        Python::attach(|py| {
-            let data = PyDict::new(py);
-            data.set_item("type", self.to_string().to_ascii_lowercase())?;
-            if let InitStrategy::SOME { kwargs } = self {
-                data.set_item("kwargs", kwargs)?;
-            }
-            Ok(data.into_any().unbind())
-        })
+    pub fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+        let data = PyDict::new(py);
+        data.set_item("type", self.to_string().to_ascii_lowercase())?;
+        if let InitStrategy::SOME { kwargs } = self {
+            data.set_item("kwargs", kwargs)?;
+        }
+        Ok(data.into_any().unbind())
     }
 }
 
