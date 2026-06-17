@@ -8,7 +8,6 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::PyGenericAlias;
-use pyo3::types::PyList;
 use pyo3::types::{PyBytes, PyCFunction, PyDict, PyFunction, PyTuple, PyType};
 use pyo3::{prelude::*, PyTypeInfo};
 use strum::{IntoEnumIterator, VariantNames};
