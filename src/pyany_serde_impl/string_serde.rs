@@ -1,6 +1,6 @@
 use core::str;
-use pyo3::prelude::*;
 use pyo3::types::PyString;
+use pyo3::{exceptions::PyUnicodeDecodeError, prelude::*};
 
 use crate::{
     communication::{append_bytes, append_bytes_vec, retrieve_bytes},
@@ -42,7 +42,12 @@ impl PyAnySerde for StringSerde {
     ) -> PyResult<(Bound<'py, PyAny>, usize)> {
         let (obj_bytes, offset) = retrieve_bytes(buf, offset)?;
         Ok((
-            PyString::new(py, str::from_utf8(obj_bytes)?).into_any(),
+            PyString::new(
+                py,
+                str::from_utf8(obj_bytes)
+                    .map_err(|e| PyUnicodeDecodeError::new_err_from_utf8(py, obj_bytes, e))?,
+            )
+            .into_any(),
             offset,
         ))
     }

@@ -640,8 +640,8 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                     let idx2 = fastrand::usize(..pool_size);
                     let e1 = &self.allocation_pool[idx1];
                     let e2 = &self.allocation_pool[idx2];
-                    let e1_free = e1.get_refcnt(py) == 1;
-                    let e2_free = e2.get_refcnt(py) == 1;
+                    let e1_free = unsafe { pyo3::ffi::Py_REFCNT(e1.as_ptr()) } == 1;
+                    let e2_free = unsafe { pyo3::ffi::Py_REFCNT(e2.as_ptr()) } == 1;
                     if e1_free && e2_free {
                         py_array = e1.clone_ref(py).into_bound(py);
                         if self.allocation_pool.len() > *allocation_pool_min_size {
@@ -671,7 +671,7 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                                     println!("Warning: the allocation pool for this Numpy PyAny serde instance is currently {pool_size}, which is larger than the warning limit set ({allocation_pool_warning_size}). Here is a random element from the allocation pool and a dict of the types of its referrers (and the referrers of those referrers, etc, up to the recursion depth set by PYANY_SERDE_NUMPY_ALLOCATION_WARNING_RECUSION_DEPTH (5 by default)):");
                                     let mut total_in_use = 0;
                                     for item in self.allocation_pool.iter() {
-                                        if item.get_refcnt(py) > 1 {
+                                        if unsafe { pyo3::ffi::Py_REFCNT(item.as_ptr()) } > 1 {
                                             total_in_use += 1;
                                         }
                                     }
