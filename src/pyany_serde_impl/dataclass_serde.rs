@@ -103,7 +103,7 @@ macro_rules! create_union {
     }};
 }
 
-fn get_enum_subclass_before_validator_fn<'py>(
+fn get_init_strategy_constructor<'py>(
     cls: &Bound<'py, PyType>,
 ) -> PyResult<Bound<'py, PyCFunction>> {
     let _py = cls.py();
@@ -134,7 +134,30 @@ fn get_enum_subclass_before_validator_fn<'py>(
     PyCFunction::new_closure(_py, None, None, func)
 }
 
-fn get_enum_subclass_typed_dict_schema<'py>(
+pub fn get_init_strategy_union_variant_typed_dict_schemas<'py>(
+    py: Python<'py>,
+    core_schema: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    core_schema.call_method1(
+        "union_schema",
+        (vec![
+            get_init_strategy_variant_typed_dict_schema(
+                &InitStrategy_ALL::type_object(py),
+                &core_schema,
+            )?,
+            get_init_strategy_variant_typed_dict_schema(
+                &InitStrategy_SOME::type_object(py),
+                &core_schema,
+            )?,
+            get_init_strategy_variant_typed_dict_schema(
+                &InitStrategy_NONE::type_object(py),
+                &core_schema,
+            )?,
+        ],),
+    )
+}
+
+fn get_init_strategy_variant_typed_dict_schema<'py>(
     cls: &Bound<'py, PyType>,
     core_schema: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
@@ -191,12 +214,12 @@ impl InitStrategy {
         let init_strategy_is_instance_schema =
             core_schema.getattr("is_instance_schema")?.call1((cls,))?;
         let init_strategy_json_schema = core_schema.getattr("chain_schema")?.call1((vec![
-            get_enum_subclass_typed_dict_schema(cls, &core_schema)?,
+            get_init_strategy_variant_typed_dict_schema(cls, &core_schema)?,
             core_schema
                 .getattr("no_info_before_validator_function")?
                 .call1((
-                    get_enum_subclass_before_validator_fn(cls)?,
-                    &init_strategy_is_instance_schema,
+                    get_init_strategy_constructor(cls)?,
+                    core_schema.call_method0("any_schema")?,
                 ))?,
         ],))?;
         let init_strategy_python_schema = core_schema.call_method1(

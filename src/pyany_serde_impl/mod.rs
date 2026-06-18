@@ -20,14 +20,17 @@ mod union_serde;
 pub use bool_serde::BoolSerde;
 pub use bytes_serde::BytesSerde;
 pub use complex_serde::ComplexSerde;
-pub use dataclass_serde::{DataclassSerde, InitStrategy, PickleableInitStrategy};
+pub use dataclass_serde::{
+    get_init_strategy_union_variant_typed_dict_schemas, DataclassSerde, InitStrategy,
+    PickleableInitStrategy,
+};
 pub use dict_serde::DictSerde;
 pub use dynamic_serde::DynamicSerde;
 pub use float_serde::FloatSerde;
 pub use int_serde::IntSerde;
 pub use list_serde::ListSerde;
 pub use numpy_serde::{
-    check_for_unpickling as numpy_check_for_unpickling, get_numpy_serde, NumpySerde,
+    get_numpy_serde, get_numpy_serde_config_union_variant_typed_dict_schemas, NumpySerde,
     NumpySerdeConfig, PickleableNumpySerdeConfig,
 };
 pub use option_serde::OptionSerde;

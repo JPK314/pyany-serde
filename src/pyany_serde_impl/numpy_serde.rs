@@ -15,6 +15,7 @@ use crate::communication::{
     append_bool_vec, append_bytes_vec, append_usize, append_usize_vec, retrieve_bool,
     retrieve_usize,
 };
+use crate::unpickling::{prompt_for_unpickling, ValidationContext};
 use crate::{
     common::{get_bytes_to_alignment, NumpyDtype},
     communication::{append_bytes, retrieve_bytes},
@@ -228,17 +229,7 @@ macro_rules! create_union {
     }};
 }
 
-pub fn check_for_unpickling<'py>(data: &Bound<'py, PyAny>) -> PyResult<bool> {
-    let preprocessor_fn_hex_option = data
-        .get_item("preprocessor_fn_pkl")?
-        .extract::<Option<String>>()?;
-    let postprocessor_fn_hex_option = data
-        .get_item("postprocessor_fn_pkl")?
-        .extract::<Option<String>>()?;
-    Ok(preprocessor_fn_hex_option.is_some() || postprocessor_fn_hex_option.is_some())
-}
-
-fn get_enum_subclass_before_validator_fn<'py>(
+fn get_numpy_serde_config_constructor<'py>(
     cls: &Bound<'py, PyType>,
 ) -> PyResult<Bound<'py, PyCFunction>> {
     let _py = cls.py();
@@ -248,12 +239,53 @@ fn get_enum_subclass_before_validator_fn<'py>(
           -> PyResult<Py<PyAny>> {
         let py = args.py();
         let data = args.get_item(0)?;
+        let mut validation_context = if args.len() == 2 {
+            // called with info
+            let info = args.get_item(1)?;
+
+            let validation_context_option = info
+                .getattr("context")?
+                .extract::<Option<Bound<'_, ValidationContext>>>()?;
+            let (prompt_for_unpickle, model_field, path) =
+                if let Some(validation_context) = validation_context_option {
+                    (
+                        validation_context.borrow().prompt_for_unpickle,
+                        validation_context.borrow().model_field.clone(),
+                        validation_context.borrow().path.clone(),
+                    )
+                } else {
+                    (
+                        true,
+                        info.getattr("field_name")?.extract::<Option<String>>()?,
+                        "$".to_string(),
+                    )
+                };
+            Bound::new(
+                py,
+                ValidationContext {
+                    prompt_for_unpickle,
+                    model_field,
+                    path,
+                },
+            )?
+        } else {
+            Bound::new(
+                py,
+                ValidationContext {
+                    prompt_for_unpickle: true,
+                    model_field: None,
+                    path: "$".to_string(),
+                },
+            )?
+        }
+        .borrow_mut();
         let cls = py_cls.bind(py);
         let preprocessor_fn_hex_option = data
             .get_item("preprocessor_fn_pkl")?
             .extract::<Option<String>>()?;
         let preprocessor_fn_option = preprocessor_fn_hex_option
             .map(|preprocessor_fn_hex| {
+                prompt_for_unpickling(&mut validation_context, "preprocessor_fn_pkl".to_string())?;
                 Ok::<_, PyErr>(
                     py.import("pickle")?
                         .getattr("loads")?
@@ -275,6 +307,9 @@ fn get_enum_subclass_before_validator_fn<'py>(
             .extract::<Option<String>>()?;
         let postprocessor_fn_option = postprocessor_fn_hex_option
             .map(|postprocessor_fn_hex| {
+                validation_context.path =
+                    format!("{}.postprocessor_fn_pkl", validation_context.path);
+                prompt_for_unpickling(&mut validation_context, "postprocessor_fn_pkl".to_string())?;
                 Ok::<_, PyErr>(
                     py.import("pickle")?
                         .getattr("loads")?
@@ -338,7 +373,26 @@ fn get_enum_subclass_before_validator_fn<'py>(
     PyCFunction::new_closure(_py, None, None, func)
 }
 
-fn get_enum_subclass_typed_dict_schema<'py>(
+pub fn get_numpy_serde_config_union_variant_typed_dict_schemas<'py>(
+    py: Python<'py>,
+    core_schema: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    core_schema.call_method1(
+        "union_schema",
+        (vec![
+            get_numpy_serde_config_variant_typed_dict_schema(
+                &NumpySerdeConfig_DYNAMIC::type_object(py),
+                &core_schema,
+            )?,
+            get_numpy_serde_config_variant_typed_dict_schema(
+                &NumpySerdeConfig_STATIC::type_object(py),
+                &core_schema,
+            )?,
+        ],),
+    )
+}
+
+fn get_numpy_serde_config_variant_typed_dict_schema<'py>(
     cls: &Bound<'py, PyType>,
     core_schema: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
@@ -429,12 +483,12 @@ impl NumpySerdeConfig {
         let numpy_serde_is_instance_schema =
             core_schema.getattr("is_instance_schema")?.call1((cls,))?;
         let numpy_serde_json_schema = core_schema.getattr("chain_schema")?.call1((vec![
-            get_enum_subclass_typed_dict_schema(cls, &core_schema)?,
+            get_numpy_serde_config_variant_typed_dict_schema(cls, &core_schema)?,
             core_schema
-                .getattr("no_info_before_validator_function")?
+                .getattr("with_info_before_validator_function")?
                 .call1((
-                    get_enum_subclass_before_validator_fn(cls)?,
-                    &numpy_serde_is_instance_schema,
+                    get_numpy_serde_config_constructor(cls)?,
+                    core_schema.call_method0("any_schema")?,
                 ))?,
         ],))?;
         let numpy_serde_python_schema = core_schema.call_method1(

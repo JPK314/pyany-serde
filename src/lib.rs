@@ -4,6 +4,7 @@ pub mod pyany_serde_impl;
 
 mod pyany_serde;
 mod pyany_serde_type;
+mod unpickling;
 
 pub use pyany_serde::DynPyAnySerdeOption;
 pub use pyany_serde::PyAnySerde;
