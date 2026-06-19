@@ -52,8 +52,7 @@ pub fn retrieve_bool(buf: &[u8], offset: usize) -> PyResult<(bool, usize)> {
         0 => Ok(false),
         1 => Ok(true),
         v => Err(InvalidStateError::new_err(format!(
-            "tried to retrieve bool from shared_memory but got value {}",
-            v
+            "tried to retrieve bool from shared_memory but got value {v}"
         ))),
     }?;
     Ok((val, end))

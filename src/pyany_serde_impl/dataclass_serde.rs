@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use enum_kinds::EnumKind;
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
-use pyo3::types::{PyCFunction, PyDict, PyString, PyTuple, PyType};
+use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 use pyo3::{prelude::*, PyTypeInfo};
-use strum_macros::Display;
+use strum_macros::{Display, EnumIter};
 
 use crate::communication::{append_string_vec, retrieve_string, retrieve_usize};
 use crate::PyAnySerde;
@@ -81,166 +82,40 @@ impl PickleableInitStrategy {
 }
 
 #[pyclass(from_py_object)]
-#[derive(Clone, Debug, PartialEq, Display)]
+#[derive(Clone, Debug, PartialEq, Display, EnumKind)]
+#[enum_kind(InitStrategyKind, derive(Display, EnumIter))]
 pub enum InitStrategy {
     ALL {},
     SOME { kwargs: Vec<String> },
     NONE {},
 }
 
-macro_rules! create_union {
-    ($handler:expr, $py:expr, $($type:ident),+) => {{
-        let mut union_list = Vec::new();
-        $(
-            union_list.push(
-                $handler.call_method1(
-                    "generate_schema",
-                    (paste::paste! { [<InitStrategy_ $type>]::type_object($py) },)
-                )?
-            );
-        )+
-        Ok::<_, PyErr>(union_list)
-    }};
-}
-
-fn get_init_strategy_constructor<'py>(
-    cls: &Bound<'py, PyType>,
-) -> PyResult<Bound<'py, PyCFunction>> {
-    let _py = cls.py();
-    let py_cls = cls.clone().unbind();
-    let func = move |args: &Bound<'_, PyTuple>,
-                     _kwargs: Option<&Bound<'_, PyDict>>|
-          -> PyResult<Py<PyAny>> {
-        let py = args.py();
-        let data = args.get_item(0)?;
-        let cls = py_cls.bind(py);
-        if cls.eq(InitStrategy_ALL::type_object(py))? {
-            Ok(InitStrategy::ALL {}.into_pyobject(py)?.into_any().unbind())
-        } else if cls.eq(InitStrategy_SOME::type_object(py))? {
-            let kwargs = data.get_item("kwargs")?.extract::<Vec<String>>()?;
-            Ok(InitStrategy::SOME { kwargs }
-                .into_pyobject(py)?
-                .into_any()
-                .unbind())
-        } else if cls.eq(InitStrategy_NONE::type_object(py))? {
-            Ok(InitStrategy::NONE {}.into_pyobject(py)?.into_any().unbind())
-        } else {
-            Err(PyValueError::new_err(format!(
-                "Unexpected class: {}",
-                cls.repr()?.to_str()?
-            )))
+impl InitStrategyKind {
+    pub fn type_object<'py>(self, py: Python<'py>) -> Bound<'py, PyType> {
+        match self {
+            InitStrategyKind::ALL => InitStrategy_ALL::type_object(py),
+            InitStrategyKind::SOME => InitStrategy_SOME::type_object(py),
+            InitStrategyKind::NONE => InitStrategy_NONE::type_object(py),
         }
-    };
-    PyCFunction::new_closure(_py, None, None, func)
-}
-
-pub fn get_init_strategy_union_variant_typed_dict_schemas<'py>(
-    py: Python<'py>,
-    core_schema: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    core_schema.call_method1(
-        "union_schema",
-        (vec![
-            get_init_strategy_variant_typed_dict_schema(
-                &InitStrategy_ALL::type_object(py),
-                &core_schema,
-            )?,
-            get_init_strategy_variant_typed_dict_schema(
-                &InitStrategy_SOME::type_object(py),
-                &core_schema,
-            )?,
-            get_init_strategy_variant_typed_dict_schema(
-                &InitStrategy_NONE::type_object(py),
-                &core_schema,
-            )?,
-        ],),
-    )
-}
-
-fn get_init_strategy_variant_typed_dict_schema<'py>(
-    cls: &Bound<'py, PyType>,
-    core_schema: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = cls.py();
-    let typed_dict_schema = core_schema.getattr("typed_dict_schema")?;
-    let typed_dict_field = core_schema.getattr("typed_dict_field")?;
-    let str_schema = core_schema.getattr("str_schema")?;
-    let list_schema = core_schema.getattr("list_schema")?;
-    let typed_dict_fields = PyDict::new(py);
-    typed_dict_fields.set_item(
-        "type",
-        typed_dict_field.call1((str_schema.call(
-            (),
-            Some(&PyDict::from_sequence(
-                &vec![(
-                    "pattern",
-                    vec![
-                        "^".to_owned(),
-                        cls.name()?.to_string().to_ascii_lowercase(),
-                        "$".to_owned(),
-                    ]
-                    .join("")
-                    .into_pyobject(py)?
-                    .into_any(),
-                )]
-                .into_pyobject(py)?,
-            )?),
-        )?,))?,
-    )?;
-    if cls.eq(InitStrategy_SOME::type_object(py))? {
-        typed_dict_fields.set_item(
-            "kwargs",
-            typed_dict_field.call1((list_schema.call1((str_schema.call0()?,))?,))?,
-        )?;
     }
-    typed_dict_schema.call1((typed_dict_fields,))
-}
-
-#[pymethods]
-impl InitStrategy {
-    // pydantic methods
-    #[classmethod]
-    fn __get_pydantic_core_schema__<'py>(
-        cls: &Bound<'py, PyType>,
-        _source_type: Bound<'py, PyAny>,
-        handler: Bound<'py, PyAny>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let py = cls.py();
-        let core_schema = py.import("pydantic_core")?.getattr("core_schema")?;
-        if cls.eq(InitStrategy::type_object(py))? {
-            let union_list = create_union!(handler, py, ALL, SOME, NONE)?;
-            return core_schema.call_method1("union_schema", (union_list,));
+    pub fn from_type_object<'py>(to: &Bound<'py, PyType>) -> PyResult<Option<InitStrategyKind>> {
+        let py = to.py();
+        if to.eq(InitStrategy::type_object(py))? {
+            return Ok(None);
         }
-        let init_strategy_is_instance_schema =
-            core_schema.getattr("is_instance_schema")?.call1((cls,))?;
-        let init_strategy_json_schema = core_schema.getattr("chain_schema")?.call1((vec![
-            get_init_strategy_variant_typed_dict_schema(cls, &core_schema)?,
-            core_schema
-                .getattr("no_info_before_validator_function")?
-                .call1((
-                    get_init_strategy_constructor(cls)?,
-                    core_schema.call_method0("any_schema")?,
-                ))?,
-        ],))?;
-        let init_strategy_python_schema = core_schema.call_method1(
-            "union_schema",
-            (vec![
-                &init_strategy_is_instance_schema,
-                &init_strategy_json_schema,
-            ],),
-        )?;
-        core_schema
-            .getattr("json_or_python_schema")?
-            .call1((init_strategy_json_schema, init_strategy_python_schema))
-    }
-
-    pub fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
-        let data = PyDict::new(py);
-        data.set_item("type", self.to_string().to_ascii_lowercase())?;
-        if let InitStrategy::SOME { kwargs } = self {
-            data.set_item("kwargs", kwargs)?;
+        if to.eq(InitStrategy_ALL::type_object(py))? {
+            return Ok(Some(InitStrategyKind::ALL));
         }
-        Ok(data.into_any().unbind())
+        if to.eq(InitStrategy_SOME::type_object(py))? {
+            return Ok(Some(InitStrategyKind::SOME));
+        }
+        if to.eq(InitStrategy_NONE::type_object(py))? {
+            return Ok(Some(InitStrategyKind::NONE));
+        }
+        Err(PyValueError::new_err(format!(
+            "Unexpected value PyType {}",
+            to.repr()?
+        )))
     }
 }
 

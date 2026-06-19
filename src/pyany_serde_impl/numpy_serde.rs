@@ -1,21 +1,21 @@
 use std::env;
 
 use bytemuck::{cast_slice, AnyBitPattern, NoUninit};
+use enum_kinds::EnumKind;
 use numpy::ndarray::ArrayD;
 use numpy::{Element, PyArrayDyn, PyArrayMethods, PyUntypedArrayMethods};
 use numpy::{IntoPyArray, PyArray};
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::{PyBytes, PyCFunction, PyDict, PyList, PyTuple, PyType};
+use pyo3::types::{PyBytes, PyDict, PyList, PyTuple, PyType};
 use pyo3::{intern, prelude::*, PyTypeInfo};
-use strum_macros::Display;
+use strum_macros::{Display, EnumIter};
 
 use crate::communication::{
     append_bool_vec, append_bytes_vec, append_usize, append_usize_vec, retrieve_bool,
     retrieve_usize,
 };
-use crate::unpickling::{prompt_for_unpickling, ValidationContext};
 use crate::{
     common::{get_bytes_to_alignment, NumpyDtype},
     communication::{append_bytes, retrieve_bytes},
@@ -196,7 +196,8 @@ impl PickleableNumpySerdeConfig {
 
 // TODO: remove preprocessor and postprocessor fns
 #[pyclass(from_py_object)]
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone, Display, EnumKind)]
+#[enum_kind(NumpySerdeConfigKind, derive(Display, EnumIter))]
 pub enum NumpySerdeConfig {
     #[pyo3(constructor = (preprocessor_fn = None, postprocessor_fn = None))]
     DYNAMIC {
@@ -214,367 +215,30 @@ pub enum NumpySerdeConfig {
     },
 }
 
-macro_rules! create_union {
-    ($handler:expr, $py:expr, $($type:ident),+) => {{
-        let mut union_list = Vec::new();
-        $(
-            union_list.push(
-                $handler.call_method1(
-                    "generate_schema",
-                    (paste::paste! { [<NumpySerdeConfig_ $type>]::type_object($py) },)
-                )?
-            );
-        )+
-        Ok::<_, PyErr>(union_list)
-    }};
-}
-
-fn get_numpy_serde_config_constructor<'py>(
-    cls: &Bound<'py, PyType>,
-) -> PyResult<Bound<'py, PyCFunction>> {
-    let _py = cls.py();
-    let py_cls = cls.clone().unbind();
-    let func = move |args: &Bound<'_, PyTuple>,
-                     _kwargs: Option<&Bound<'_, PyDict>>|
-          -> PyResult<Py<PyAny>> {
-        let py = args.py();
-        let data = args.get_item(0)?;
-        let mut validation_context = if args.len() == 2 {
-            // called with info
-            let info = args.get_item(1)?;
-
-            let validation_context_option = info
-                .getattr("context")?
-                .extract::<Option<Bound<'_, ValidationContext>>>()?;
-            let (prompt_for_unpickle, model_field, path) =
-                if let Some(validation_context) = validation_context_option {
-                    (
-                        validation_context.borrow().prompt_for_unpickle,
-                        validation_context.borrow().model_field.clone(),
-                        validation_context.borrow().path.clone(),
-                    )
-                } else {
-                    (
-                        true,
-                        info.getattr("field_name")?.extract::<Option<String>>()?,
-                        "$".to_string(),
-                    )
-                };
-            Bound::new(
-                py,
-                ValidationContext {
-                    prompt_for_unpickle,
-                    model_field,
-                    path,
-                },
-            )?
-        } else {
-            Bound::new(
-                py,
-                ValidationContext {
-                    prompt_for_unpickle: true,
-                    model_field: None,
-                    path: "$".to_string(),
-                },
-            )?
-        }
-        .borrow_mut();
-        let cls = py_cls.bind(py);
-        let preprocessor_fn_hex_option = data
-            .get_item("preprocessor_fn_pkl")?
-            .extract::<Option<String>>()?;
-        let preprocessor_fn_option = preprocessor_fn_hex_option
-            .map(|preprocessor_fn_hex| {
-                prompt_for_unpickling(&mut validation_context, "preprocessor_fn_pkl".to_string())?;
-                Ok::<_, PyErr>(
-                    py.import("pickle")?
-                        .getattr("loads")?
-                        .call1((PyBytes::new(
-                            py,
-                            &hex::decode(preprocessor_fn_hex.as_str()).map_err(|err| {
-                                PyValueError::new_err(format!(
-                                    "python_serde_pkl could not be decoded from hex into bytes: {}",
-                                    err.to_string()
-                                ))
-                            })?,
-                        ),))?
-                        .unbind(),
-                )
-            })
-            .transpose()?;
-        let postprocessor_fn_hex_option = data
-            .get_item("postprocessor_fn_pkl")?
-            .extract::<Option<String>>()?;
-        let postprocessor_fn_option = postprocessor_fn_hex_option
-            .map(|postprocessor_fn_hex| {
-                validation_context.path =
-                    format!("{}.postprocessor_fn_pkl", validation_context.path);
-                prompt_for_unpickling(&mut validation_context, "postprocessor_fn_pkl".to_string())?;
-                Ok::<_, PyErr>(
-                    py.import("pickle")?
-                        .getattr("loads")?
-                        .call1((PyBytes::new(
-                            py,
-                            &hex::decode(postprocessor_fn_hex.as_str()).map_err(|err| {
-                                PyValueError::new_err(format!(
-                                    "python_serde_pkl could not be decoded from hex into bytes: {}",
-                                    err.to_string()
-                                ))
-                            })?,
-                        ),))?
-                        .unbind(),
-                )
-            })
-            .transpose()?;
-        if cls.eq(NumpySerdeConfig_DYNAMIC::type_object(py))? {
-            Ok(NumpySerdeConfig::DYNAMIC {
-                preprocessor_fn: preprocessor_fn_option,
-                postprocessor_fn: postprocessor_fn_option,
-            }
-            .into_pyobject(py)?
-            .into_any()
-            .unbind())
-        } else if cls.eq(NumpySerdeConfig_STATIC::type_object(py))? {
-            let shape = data.get_item("shape")?.extract::<Vec<usize>>()?;
-            let allocation_pool_min_size = data
-                .get_item("allocation_pool_min_size")?
-                .extract::<usize>()?;
-            let allocation_pool_max_size = data
-                .get_item("allocation_pool_max_size")?
-                .extract::<Option<usize>>()?;
-            let allocation_pool_warning_size = data
-                .get_item("allocation_pool_warning_size")?
-                .extract::<Option<usize>>()?;
-            if allocation_pool_max_size.is_some()
-                && allocation_pool_min_size > allocation_pool_max_size.unwrap()
-            {
-                Err(PyValueError::new_err(format!(
-                    "Validation error: allocation_pool_min_size ({}) cannot be greater than allocation_pool_max_size ({})", allocation_pool_min_size, allocation_pool_max_size.unwrap()
-                )))?
-            }
-            Ok(NumpySerdeConfig::STATIC {
-                preprocessor_fn: preprocessor_fn_option,
-                postprocessor_fn: postprocessor_fn_option,
-                shape,
-                allocation_pool_min_size,
-                allocation_pool_max_size,
-                allocation_pool_warning_size,
-            }
-            .into_pyobject(py)?
-            .into_any()
-            .unbind())
-        } else {
-            Err(PyValueError::new_err(format!(
-                "Unexpected class: {}",
-                cls.repr()?.to_str()?
-            )))
-        }
-    };
-    PyCFunction::new_closure(_py, None, None, func)
-}
-
-pub fn get_numpy_serde_config_union_variant_typed_dict_schemas<'py>(
-    py: Python<'py>,
-    core_schema: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    core_schema.call_method1(
-        "union_schema",
-        (vec![
-            get_numpy_serde_config_variant_typed_dict_schema(
-                &NumpySerdeConfig_DYNAMIC::type_object(py),
-                &core_schema,
-            )?,
-            get_numpy_serde_config_variant_typed_dict_schema(
-                &NumpySerdeConfig_STATIC::type_object(py),
-                &core_schema,
-            )?,
-        ],),
-    )
-}
-
-fn get_numpy_serde_config_variant_typed_dict_schema<'py>(
-    cls: &Bound<'py, PyType>,
-    core_schema: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = cls.py();
-    let typed_dict_schema = core_schema.getattr("typed_dict_schema")?;
-    let typed_dict_field = core_schema.getattr("typed_dict_field")?;
-    let int_schema = core_schema.getattr("int_schema")?;
-    let str_schema = core_schema.getattr("str_schema")?;
-    let list_schema = core_schema.getattr("list_schema")?;
-    let nullable_schema = core_schema.getattr("nullable_schema")?;
-    let typed_dict_fields = PyDict::new(py);
-    typed_dict_fields.set_item(
-        "type",
-        typed_dict_field.call1((str_schema.call(
-            (),
-            Some(&PyDict::from_sequence(
-                &vec![(
-                    "pattern",
-                    vec![
-                        "^".to_owned(),
-                        cls.name()?.to_string().to_ascii_lowercase(),
-                        "$".to_owned(),
-                    ]
-                    .join("")
-                    .into_pyobject(py)?
-                    .into_any(),
-                )]
-                .into_pyobject(py)?,
-            )?),
-        )?,))?,
-    )?;
-    typed_dict_fields.set_item(
-        "preprocessor_fn_pkl",
-        typed_dict_field.call1((nullable_schema.call1((str_schema.call0()?,))?,))?,
-    )?;
-    typed_dict_fields.set_item(
-        "postprocessor_fn_pkl",
-        typed_dict_field.call1((nullable_schema.call1((str_schema.call0()?,))?,))?,
-    )?;
-    if cls.eq(NumpySerdeConfig_STATIC::type_object(py))? {
-        typed_dict_fields.set_item(
-            "shape",
-            typed_dict_field.call1((list_schema.call1((int_schema.call(
-                (),
-                Some(&PyDict::from_sequence(&vec![("ge", 0)].into_pyobject(py)?)?),
-            )?,))?,))?,
-        )?;
-        typed_dict_fields.set_item(
-            "allocation_pool_min_size",
-            typed_dict_field.call1((int_schema.call(
-                (),
-                Some(&PyDict::from_sequence(&vec![("ge", 0)].into_pyobject(py)?)?),
-            )?,))?,
-        )?;
-        typed_dict_fields.set_item(
-            "allocation_pool_max_size",
-            typed_dict_field.call1((nullable_schema.call1((int_schema.call(
-                (),
-                Some(&PyDict::from_sequence(&vec![("ge", 0)].into_pyobject(py)?)?),
-            )?,))?,))?,
-        )?;
-        typed_dict_fields.set_item(
-            "allocation_pool_warning_size",
-            typed_dict_field.call1((nullable_schema.call1((int_schema.call(
-                (),
-                Some(&PyDict::from_sequence(&vec![("ge", 0)].into_pyobject(py)?)?),
-            )?,))?,))?,
-        )?;
-    }
-    typed_dict_schema.call1((typed_dict_fields,))
-}
-
-#[pymethods]
-impl NumpySerdeConfig {
-    // pydantic methods
-    #[classmethod]
-    fn __get_pydantic_core_schema__<'py>(
-        cls: &Bound<'py, PyType>,
-        _source_type: Bound<'py, PyAny>,
-        handler: Bound<'py, PyAny>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let py = cls.py();
-        let core_schema = py.import("pydantic_core")?.getattr("core_schema")?;
-        if cls.eq(NumpySerdeConfig::type_object(py))? {
-            let union_list = create_union!(handler, py, DYNAMIC, STATIC)?;
-            return core_schema.call_method1("union_schema", (union_list,));
-        }
-        let numpy_serde_is_instance_schema =
-            core_schema.getattr("is_instance_schema")?.call1((cls,))?;
-        let numpy_serde_json_schema = core_schema.getattr("chain_schema")?.call1((vec![
-            get_numpy_serde_config_variant_typed_dict_schema(cls, &core_schema)?,
-            core_schema
-                .getattr("with_info_before_validator_function")?
-                .call1((
-                    get_numpy_serde_config_constructor(cls)?,
-                    core_schema.call_method0("any_schema")?,
-                ))?,
-        ],))?;
-        let numpy_serde_python_schema = core_schema.call_method1(
-            "union_schema",
-            (vec![
-                &numpy_serde_is_instance_schema,
-                &numpy_serde_json_schema,
-            ],),
-        )?;
-        core_schema
-            .getattr("json_or_python_schema")?
-            .call1((numpy_serde_json_schema, numpy_serde_python_schema))
-    }
-
-    pub fn to_json<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
-        let data = PyDict::new(py);
-        data.set_item("type", self.to_string().to_ascii_lowercase())?;
+impl NumpySerdeConfigKind {
+    pub fn type_object<'py>(self, py: Python<'py>) -> Bound<'py, PyType> {
         match self {
-            NumpySerdeConfig::DYNAMIC {
-                preprocessor_fn,
-                postprocessor_fn,
-            } => {
-                let preprocessor_fn_pkl = preprocessor_fn
-                    .as_ref()
-                    .map(|preprocessor_fn| {
-                        Ok::<_, PyErr>(
-                            py.import("pickle")?
-                                .getattr("dumps")?
-                                .call1((preprocessor_fn,))?
-                                .call_method0("hex")?,
-                        )
-                    })
-                    .transpose()?;
-                data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
-                let postprocessor_fn_pkl = postprocessor_fn
-                    .as_ref()
-                    .map(|postprocessor_fn| {
-                        Ok::<_, PyErr>(
-                            py.import("pickle")?
-                                .getattr("dumps")?
-                                .call1((postprocessor_fn,))?
-                                .call_method0("hex")?,
-                        )
-                    })
-                    .transpose()?;
-                data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
-            }
-            NumpySerdeConfig::STATIC {
-                preprocessor_fn,
-                postprocessor_fn,
-                shape,
-                allocation_pool_min_size,
-                allocation_pool_max_size,
-                allocation_pool_warning_size,
-            } => {
-                let preprocessor_fn_pkl = preprocessor_fn
-                    .as_ref()
-                    .map(|preprocessor_fn| {
-                        Ok::<_, PyErr>(
-                            py.import("pickle")?
-                                .getattr("dumps")?
-                                .call1((preprocessor_fn,))?
-                                .call_method0("hex")?,
-                        )
-                    })
-                    .transpose()?;
-                data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
-                let postprocessor_fn_pkl = postprocessor_fn
-                    .as_ref()
-                    .map(|postprocessor_fn| {
-                        Ok::<_, PyErr>(
-                            py.import("pickle")?
-                                .getattr("dumps")?
-                                .call1((postprocessor_fn,))?
-                                .call_method0("hex")?,
-                        )
-                    })
-                    .transpose()?;
-                data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
-                data.set_item("shape", shape)?;
-                data.set_item("allocation_pool_min_size", allocation_pool_min_size)?;
-                data.set_item("allocation_pool_max_size", allocation_pool_max_size)?;
-                data.set_item("allocation_pool_warning_size", allocation_pool_warning_size)?;
-            }
+            NumpySerdeConfigKind::DYNAMIC => NumpySerdeConfig_DYNAMIC::type_object(py),
+            NumpySerdeConfigKind::STATIC => NumpySerdeConfig_STATIC::type_object(py),
         }
-        Ok(data.into_any().unbind())
+    }
+    pub fn from_type_object<'py>(
+        to: &Bound<'py, PyType>,
+    ) -> PyResult<Option<NumpySerdeConfigKind>> {
+        let py = to.py();
+        if to.eq(NumpySerdeConfig::type_object(py))? {
+            return Ok(None);
+        }
+        if to.eq(NumpySerdeConfig_DYNAMIC::type_object(py))? {
+            return Ok(Some(NumpySerdeConfigKind::DYNAMIC));
+        }
+        if to.eq(NumpySerdeConfig_STATIC::type_object(py))? {
+            return Ok(Some(NumpySerdeConfigKind::STATIC));
+        }
+        Err(PyValueError::new_err(format!(
+            "Unexpected value PyType {}",
+            to.repr()?
+        )))
     }
 }
 
@@ -669,8 +333,7 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                 ArrayD::from_shape_vec(shape, array_vec)
                     .map_err(|err| {
                         InvalidStateError::new_err(format!(
-                            "Failed create Numpy array of T from shape and Vec<T>: {}",
-                            err
+                            "Failed create Numpy array of T from shape and Vec<T>: {err}"
                         ))
                     })?
                     .into_pyarray(py)
@@ -747,8 +410,7 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                     py_array = ArrayD::from_shape_vec(&shape[..], array_vec)
                         .map_err(|err| {
                             InvalidStateError::new_err(format!(
-                                "Failed create Numpy array of T from shape and Vec<T>: {}",
-                                err
+                                "Failed create Numpy array of T from shape and Vec<T>: {err}"
                             ))
                         })?
                         .into_pyarray(py);

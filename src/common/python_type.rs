@@ -97,8 +97,7 @@ pub fn retrieve_python_type(bytes: &[u8], offset: usize) -> PyResult<(PythonType
         19 => Ok(PythonType::STRING),
         20 => Ok(PythonType::TUPLE),
         v => Err(InvalidStateError::new_err(format!(
-            "tried to deserialize PythonType but got value {}",
-            v
+            "tried to deserialize PythonType but got value {v}"
         ))),
     }?;
     Ok((python_type, offset + 1))

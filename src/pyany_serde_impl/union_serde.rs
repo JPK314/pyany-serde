@@ -28,8 +28,7 @@ impl PyAnySerde for UnionSerde {
         let offset = append_usize(buf, offset, serde_idx);
         let pyany_serde = self.option_serdes.get_mut(serde_idx).ok_or_else(|| {
             InvalidStateError::new_err(format!(
-                "Serde choice function returned {} which is not a valid choice index",
-                serde_idx
+                "Serde choice function returned {serde_idx} which is not a valid choice index"
             ))
         })?;
         pyany_serde.append(buf, offset, obj)
@@ -49,8 +48,7 @@ impl PyAnySerde for UnionSerde {
         append_usize_vec(v, serde_idx);
         let pyany_serde = self.option_serdes.get_mut(serde_idx).ok_or_else(|| {
             InvalidStateError::new_err(format!(
-                "Serde choice function returned {} which is not a valid choice index",
-                serde_idx
+                "Serde choice function returned {serde_idx} which is not a valid choice index"
             ))
         })?;
         pyany_serde.append_vec(v, start_addr, obj)
@@ -65,8 +63,7 @@ impl PyAnySerde for UnionSerde {
         let (serde_idx, offset) = retrieve_usize(buf, offset)?;
         let pyany_serde = self.option_serdes.get_mut(serde_idx).ok_or_else(|| {
             InvalidStateError::new_err(format!(
-                "Deserialized serde idx {} which is not a valid choice index",
-                serde_idx
+                "Deserialized serde idx {serde_idx} which is not a valid choice index"
             ))
         })?;
         pyany_serde.retrieve(py, buf, offset)

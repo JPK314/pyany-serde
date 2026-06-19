@@ -20,6 +20,7 @@ inherits = "release"
 bytemuck = "1.17.0"
 byteorder = "1.5.0"
 dyn-clone = "1.0.17"
+enum-kinds = "0.5.1"
 fastrand = "2.2.0"
 hex = "0.4.3"
 itertools = "0.13.0"
@@ -27,7 +28,7 @@ num-derive = "0.4.2"
 num-traits = "0.2.19"
 numpy = "0.29.0"
 paste = { package = "pastey", version = "*" }
-pyo3 = { version = "0.29.0", features = ["py-clone"] }
+pyo3 = { version = "0.29.0", features = ["py-clone", "multiple-pymethods"] }
 raw_sync = "0.1.5"
 shared_memory = "0.12.4"
 strum = "0.27.1"

@@ -1,21 +1,61 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
+use pyo3::types::PyBytes;
 use std::env;
 use std::io;
 use std::io::Write;
 
-#[pyclass(skip_from_py_object)]
-#[derive(Debug, Clone)]
-pub struct ValidationContext {
-    pub prompt_for_unpickle: bool,
-    pub model_field: Option<String>,
-    pub path: String,
+use crate::pydantic::common::ValidationContext;
+
+static INTERNED_PICKLE_LOADS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+pub fn unpickle_field_option<'py>(
+    py: Python<'py>,
+    data: &Bound<'py, PyAny>,
+    field: &str,
+    context: &mut ValidationContext,
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let field_hex_option = data.get_item(field)?.extract::<Option<String>>()?;
+    field_hex_option
+        .map(|field_hex| unpickle_field_hex(py, field, field_hex, context))
+        .transpose()
 }
 
-pub fn prompt_for_unpickling(
-    context: &mut PyRefMut<ValidationContext>,
-    final_key: String,
-) -> PyResult<()> {
+pub fn unpickle_field<'py>(
+    py: Python<'py>,
+    data: &Bound<'py, PyAny>,
+    field: &str,
+    context: &mut ValidationContext,
+) -> PyResult<Bound<'py, PyAny>> {
+    let field_hex = data.get_item(field)?.extract::<String>()?;
+    unpickle_field_hex(py, field, field_hex, context)
+}
+
+fn unpickle_field_hex<'py>(
+    py: Python<'py>,
+    field: &str,
+    field_hex: String,
+    context: &mut ValidationContext,
+) -> PyResult<Bound<'py, PyAny>> {
+    prompt_for_unpickling(context, field)?;
+    let pickle_loads = INTERNED_PICKLE_LOADS
+        .get_or_try_init::<_, PyErr>(py, || Ok(py.import("pickle")?.getattr("loads")?.unbind()))?
+        .bind(py);
+    Ok::<_, PyErr>(pickle_loads.call1((PyBytes::new(
+        py,
+        &hex::decode(field_hex.as_str()).map_err(|err| {
+            PyValueError::new_err(format!(
+                "{}.{} could not be decoded from hex into bytes: {}",
+                context.path,
+                field,
+                err.to_string()
+            ))
+        })?,
+    ),))?)
+}
+
+fn prompt_for_unpickling(context: &mut ValidationContext, final_key: &str) -> PyResult<()> {
     let silent_mode = env::var("PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT")
         .map(|v| v.eq("1"))
         .unwrap_or(!context.prompt_for_unpickle);
