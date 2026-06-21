@@ -88,7 +88,7 @@ fn tests_submod<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
 }
 
 #[test]
-fn run_pydantic_tests() -> PyResult<()> {
+fn run_pickling_tests() -> PyResult<()> {
     Python::initialize();
     Python::attach(|py| {
         run_python_test_file(

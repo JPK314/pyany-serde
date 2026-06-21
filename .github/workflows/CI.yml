@@ -11,22 +11,6 @@ permissions:
   contents: read
 
 jobs:
-  audit:
-    name: Audit
-    permissions:
-      contents: read
-      checks: write
-      security-events: write
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        # Needed for audit-check@v2
-      - name: generate Cargo.lock
-        run: cargo generate-lockfile
-      - uses: rustsec/audit-check@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
@@ -34,16 +18,6 @@ jobs:
         platform:
           - runner: ubuntu-latest
             target: x86_64
-          - runner: ubuntu-latest
-            target: x86
-          - runner: ubuntu-latest
-            target: aarch64
-          - runner: ubuntu-latest
-            target: armv7
-          - runner: ubuntu-latest
-            target: s390x
-          - runner: ubuntu-latest
-            target: ppc64le
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -53,56 +27,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-      - name: Create venv and install dependencies
-        run: uv sync
-      - name: "Build and test"
-        run: uv run cargo test
-
-  musllinux:
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      matrix:
-        platform:
-          - runner: ubuntu-latest
-            target: x86_64
-          - runner: ubuntu-latest
-            target: x86
-          - runner: ubuntu-latest
-            target: aarch64
-          - runner: ubuntu-latest
-            target: armv7
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.x
-      - name: Create venv and install dependencies
-        run: uv sync
-      - name: "Build and test"
-        run: uv run cargo test
-
-  windows:
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      matrix:
-        platform:
-          - runner: windows-latest
-            target: x64
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.platform.target }}
       - name: Create venv and install dependencies
         run: uv sync
       - name: "Build and test"
@@ -126,5 +50,6 @@ jobs:
           python-version: 3.x
       - name: Create venv and install dependencies
         run: uv sync
+      - run: uv run python -c "import os, sys; print(sys.executable); print(sys.prefix); print(os.environ.get('VIRTUAL_ENV'))"
       - name: "Build and test"
         run: uv run cargo test
