@@ -29,8 +29,9 @@ jobs:
           python-version: 3.x
       - name: Create venv and install dependencies
         run: uv sync
+      - run: uv run python -c "import os, sys; print(sys.executable); print(sys.prefix); print(os.environ.get('VIRTUAL_ENV'))"
       - name: "Build and test"
-        run: uv run cargo test
+        run: uv run cargo test -- --nocapture
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -52,4 +53,4 @@ jobs:
         run: uv sync
       - run: uv run python -c "import os, sys; print(sys.executable); print(sys.prefix); print(os.environ.get('VIRTUAL_ENV'))"
       - name: "Build and test"
-        run: uv run cargo test
+        run: uv run cargo test -- --nocapture
