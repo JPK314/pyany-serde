@@ -6,10 +6,11 @@ use pyo3::{
     types::{PyDict, PyFunction, PyType},
     PyTypeInfo,
 };
-use strum::{IntoEnumIterator, VariantNames};
+use strum::IntoEnumIterator;
 
 use crate::{
     common::NumpyDtype,
+    pyany_serde_type::PyAnySerdeTypeKind,
     pydantic::{
         common::ValidationContext,
         init_strategy::{
@@ -315,6 +316,164 @@ pub fn pyany_serde_type_serializer<'py>(
     Ok(data)
 }
 
+pub fn get_pyany_serde_type_typed_dict_schema<'py>(
+    py: Python<'py>,
+    kind: Option<&PyAnySerdeTypeKind>,
+    core_schema: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    if kind.is_none() {
+        return core_schema.call_method(
+            "union_schema",
+            (PyAnySerdeTypeKind::iter()
+                .map(|k| get_pyany_serde_type_typed_dict_schema(py, Some(&k), core_schema))
+                .collect::<PyResult<Vec<_>>>()?,),
+            Some(&PyDict::from_sequence(
+                &[("ref", "pyany_serde_type_schema")].into_pyobject(py)?,
+            )?),
+        );
+    }
+    let kind = kind.unwrap();
+    let typed_dict_schema = core_schema.getattr("typed_dict_schema")?;
+    let typed_dict_field = core_schema.getattr("typed_dict_field")?;
+    let str_schema = core_schema.getattr("str_schema")?;
+    let list_schema = core_schema.getattr("list_schema")?;
+    let dict_schema = core_schema.getattr("dict_schema")?;
+    let pyany_serde_type_reference_schema =
+        core_schema.call_method1("definition_reference_schema", ("pyany_serde_type_schema",))?;
+    let pyany_serde_type_reference_schema_field =
+        typed_dict_field.call1((&pyany_serde_type_reference_schema,))?;
+
+    let typed_dict_fields = PyDict::new(py);
+    typed_dict_fields.set_item(
+        "type",
+        typed_dict_field.call1((str_schema.call(
+            (),
+            Some(&PyDict::from_sequence(
+                &[(
+                    "pattern",
+                    [
+                        "^".to_owned(),
+                        kind.to_string().to_ascii_lowercase(),
+                        "$".to_owned(),
+                    ]
+                    .join("")
+                    .into_pyobject(py)?
+                    .into_any(),
+                )]
+                .into_pyobject(py)?,
+            )?),
+        )?,))?,
+    )?;
+
+    match kind {
+        PyAnySerdeTypeKind::DATACLASS => {
+            typed_dict_fields.set_item(
+                "dataclass_pkl",
+                typed_dict_field.call1((str_schema.call0()?,))?,
+            )?;
+            typed_dict_fields.set_item(
+                "init_strategy",
+                typed_dict_field.call1((get_init_strategy_typed_dict_schema(
+                    py,
+                    None,
+                    &core_schema,
+                )?,))?,
+            )?;
+            typed_dict_fields.set_item(
+                "field_serde_type_dict",
+                typed_dict_field
+                    .call1((dict_schema
+                        .call1((str_schema.call0()?, &pyany_serde_type_reference_schema))?,))?,
+            )?;
+        }
+        PyAnySerdeTypeKind::DICT => {
+            typed_dict_fields
+                .set_item("keys_serde_type", &pyany_serde_type_reference_schema_field)?;
+            typed_dict_fields.set_item(
+                "values_serde_type",
+                &pyany_serde_type_reference_schema_field,
+            )?;
+        }
+        PyAnySerdeTypeKind::LIST => {
+            typed_dict_fields
+                .set_item("items_serde_type", &pyany_serde_type_reference_schema_field)?;
+        }
+        PyAnySerdeTypeKind::NUMPY => {
+            typed_dict_fields.set_item(
+                "dtype",
+                typed_dict_field.call1((str_schema.call(
+                    (),
+                    Some(&PyDict::from_sequence(
+                        &[(
+                            "pattern",
+                            [
+                                "^(".to_owned(),
+                                NumpyDtype::iter()
+                                    .map(|dtype_str| dtype_str.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("|"),
+                                ")$".to_owned(),
+                            ]
+                            .join(""),
+                        )]
+                        .into_pyobject(py)?,
+                    )?),
+                )?,))?,
+            )?;
+            typed_dict_fields.set_item(
+                "config",
+                typed_dict_field.call1((get_numpy_serde_config_typed_dict_schema(
+                    py,
+                    None,
+                    &core_schema,
+                )?,))?,
+            )?;
+        }
+        PyAnySerdeTypeKind::OPTION => {
+            typed_dict_fields
+                .set_item("value_serde_type", &pyany_serde_type_reference_schema_field)?;
+        }
+        PyAnySerdeTypeKind::PYTHONSERDE => {
+            typed_dict_fields.set_item(
+                "python_serde_pkl",
+                typed_dict_field.call1((str_schema.call0()?,))?,
+            )?;
+        }
+        PyAnySerdeTypeKind::SET => {
+            typed_dict_fields
+                .set_item("items_serde_type", &pyany_serde_type_reference_schema_field)?;
+        }
+        PyAnySerdeTypeKind::TUPLE => {
+            typed_dict_fields.set_item(
+                "item_serde_types",
+                typed_dict_field
+                    .call1((list_schema.call1((&pyany_serde_type_reference_schema,))?,))?,
+            )?;
+        }
+        PyAnySerdeTypeKind::TYPEDDICT => {
+            typed_dict_fields.set_item(
+                "key_serde_type_dict",
+                typed_dict_field
+                    .call1((dict_schema
+                        .call1((str_schema.call0()?, &pyany_serde_type_reference_schema))?,))?,
+            )?;
+        }
+        PyAnySerdeTypeKind::UNION => {
+            typed_dict_fields.set_item(
+                "option_serde_types",
+                typed_dict_field
+                    .call1((list_schema.call1((&pyany_serde_type_reference_schema,))?,))?,
+            )?;
+            typed_dict_fields.set_item(
+                "option_choice_fn_pkl",
+                typed_dict_field.call1((str_schema.call0()?,))?,
+            )?;
+        }
+        _ => (),
+    };
+    typed_dict_schema.call1((typed_dict_fields,))
+}
+
 #[pymethods]
 impl PyAnySerdeType {
     // pydantic methods
@@ -327,183 +486,19 @@ impl PyAnySerdeType {
         let py = cls.py();
         let pydantic_core = py.import("pydantic_core")?;
         let core_schema = pydantic_core.getattr("core_schema")?;
-
-        let str_schema = core_schema.getattr("str_schema")?;
-        let typed_dict_schema = core_schema.getattr("typed_dict_schema")?;
-        let list_schema = core_schema.getattr("list_schema")?;
-        let dict_schema = core_schema.getattr("dict_schema")?;
-        let any_schema = core_schema.getattr("any_schema")?;
-        let typed_dict_field = core_schema.getattr("typed_dict_field")?;
-
-        let pyany_serde_type_reference_schema = core_schema
-            .call_method1("definition_reference_schema", ("pyany_serde_type_schema",))?;
-        let pyany_serde_type_reference_schema_field =
-            typed_dict_field.call1((&pyany_serde_type_reference_schema,))?;
-
-        let union_list = PyAnySerdeType::VARIANTS
-            .iter()
-            .map(|pyany_serde_type_variant| {
-                let pyany_serde_type_field = pyany_serde_type_variant.to_ascii_lowercase();
-                let typed_dict_fields = PyDict::new(py);
-                typed_dict_fields.set_item(
-                    "type",
-                    typed_dict_field.call1((str_schema.call(
-                        (),
-                        Some(&PyDict::from_sequence(
-                            &[(
-                                "pattern",
-                                [
-                                    "^".to_owned(),
-                                    pyany_serde_type_field.clone(),
-                                    "$".to_owned(),
-                                ]
-                                .join("")
-                                .into_pyobject(py)?
-                                .into_any(),
-                            )]
-                            .into_pyobject(py)?,
-                        )?),
-                    )?,))?,
-                )?;
-                match pyany_serde_type_field.as_str() {
-                    "dataclass" => {
-                        typed_dict_fields.set_item(
-                            "dataclass_pkl",
-                            typed_dict_field.call1((str_schema.call0()?,))?,
-                        )?;
-                        typed_dict_fields.set_item(
-                            "init_strategy",
-                            typed_dict_field.call1((get_init_strategy_typed_dict_schema(
-                                py,
-                                None,
-                                &core_schema,
-                            )?,))?,
-                        )?;
-                        typed_dict_fields.set_item(
-                            "field_serde_type_dict",
-                            typed_dict_field.call1((dict_schema.call1((
-                                str_schema.call0()?,
-                                &pyany_serde_type_reference_schema,
-                            ))?,))?,
-                        )?;
-                    }
-                    "dict" => {
-                        typed_dict_fields.set_item(
-                            "keys_serde_type",
-                            &pyany_serde_type_reference_schema_field,
-                        )?;
-                        typed_dict_fields.set_item(
-                            "values_serde_type",
-                            &pyany_serde_type_reference_schema_field,
-                        )?;
-                    }
-                    "list" => {
-                        typed_dict_fields.set_item(
-                            "items_serde_type",
-                            &pyany_serde_type_reference_schema_field,
-                        )?;
-                    }
-                    "numpy" => {
-                        typed_dict_fields.set_item(
-                            "dtype",
-                            typed_dict_field.call1((str_schema.call(
-                                (),
-                                Some(&PyDict::from_sequence(
-                                    &[(
-                                        "pattern",
-                                        [
-                                            "^(".to_owned(),
-                                            NumpyDtype::iter()
-                                                .map(|dtype_str| dtype_str.to_string())
-                                                .collect::<Vec<_>>()
-                                                .join("|"),
-                                            ")$".to_owned(),
-                                        ]
-                                        .join(""),
-                                    )]
-                                    .into_pyobject(py)?,
-                                )?),
-                            )?,))?,
-                        )?;
-                        typed_dict_fields.set_item(
-                            "config",
-                            typed_dict_field.call1((get_numpy_serde_config_typed_dict_schema(
-                                py,
-                                None,
-                                &core_schema,
-                            )?,))?,
-                        )?;
-                    }
-                    "option" => {
-                        typed_dict_fields.set_item(
-                            "value_serde_type",
-                            &pyany_serde_type_reference_schema_field,
-                        )?;
-                    }
-                    "pythonserde" => {
-                        typed_dict_fields.set_item(
-                            "python_serde_pkl",
-                            typed_dict_field.call1((str_schema.call0()?,))?,
-                        )?;
-                    }
-                    "set" => {
-                        typed_dict_fields.set_item(
-                            "items_serde_type",
-                            &pyany_serde_type_reference_schema_field,
-                        )?;
-                    }
-                    "tuple" => {
-                        typed_dict_fields.set_item(
-                            "item_serde_types",
-                            typed_dict_field.call1((
-                                list_schema.call1((&pyany_serde_type_reference_schema,))?,
-                            ))?,
-                        )?;
-                    }
-                    "typeddict" => {
-                        typed_dict_fields.set_item(
-                            "key_serde_type_dict",
-                            typed_dict_field.call1((dict_schema.call1((
-                                str_schema.call0()?,
-                                &pyany_serde_type_reference_schema,
-                            ))?,))?,
-                        )?;
-                    }
-                    "union" => {
-                        typed_dict_fields.set_item(
-                            "option_serde_types",
-                            typed_dict_field.call1((
-                                list_schema.call1((&pyany_serde_type_reference_schema,))?,
-                            ))?,
-                        )?;
-                        typed_dict_fields.set_item(
-                            "option_choice_fn_pkl",
-                            typed_dict_field.call1((str_schema.call0()?,))?,
-                        )?;
-                    }
-                    _ => (),
-                };
-                Ok(typed_dict_schema.call1((typed_dict_fields,))?)
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let union_schema = core_schema.call_method(
-            "union_schema",
-            (union_list,),
-            Some(&PyDict::from_sequence(
-                &[("ref", "pyany_serde_type_schema")].into_pyobject(py)?,
-            )?),
-        )?;
+        let kind = PyAnySerdeTypeKind::from_type_object(cls)?;
+        let base_schema = get_pyany_serde_type_typed_dict_schema(py, kind.as_ref(), &core_schema)?;
         let is_instance_schema =
             core_schema.call_method1("is_instance_schema", (PyAnySerdeType::type_object(py),))?;
         let json_schema = core_schema.call_method1(
             "chain_schema",
             ([
-                union_schema.clone(),
+                base_schema.clone(),
                 core_schema.call_method1(
                     "with_info_before_validator_function",
                     (
                         wrap_pyfunction!(pyany_serde_type_constructor_with_info, py)?,
-                        any_schema.call0()?,
+                        core_schema.call_method0("any_schema")?,
                     ),
                 )?,
             ],),
@@ -520,7 +515,7 @@ impl PyAnySerdeType {
                         "plain_serializer_function_ser_schema",
                         (wrap_pyfunction!(pyany_serde_type_serializer, py)?,),
                         Some(&PyDict::from_sequence(
-                            &[("return_schema", union_schema.clone())].into_pyobject(py)?,
+                            &[("return_schema", base_schema.clone())].into_pyobject(py)?,
                         )?),
                     )?,
                 )]
@@ -531,7 +526,7 @@ impl PyAnySerdeType {
             "definitions_schema",
             (&json_or_python_schema,),
             Some(&PyDict::from_sequence(
-                &[("definitions", [union_schema])].into_pyobject(py)?,
+                &[("definitions", [base_schema])].into_pyobject(py)?,
             )?),
         )
     }

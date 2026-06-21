@@ -123,7 +123,7 @@ impl InitStrategy {
             ([
                 base_schema.clone(),
                 core_schema.call_method1(
-                    "no_info_before_validator_function",
+                    "with_info_before_validator_function",
                     (
                         wrap_pyfunction!(init_strategy_constructor_with_info, py)?,
                         core_schema.call_method0("any_schema")?,

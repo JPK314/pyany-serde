@@ -10,7 +10,6 @@ use crate::pyany_serde_impl::{
     StringSerde, TupleSerde, TypedDictSerde, UnionSerde,
 };
 use crate::pyany_serde_type::PyAnySerdeType;
-use crate::PickleablePyAnySerdeType;
 
 pub trait PyAnySerde: DynClone {
     fn append<'py>(
@@ -202,12 +201,7 @@ impl<'py> FromPyObject<'_, 'py> for Box<dyn PyAnySerde> {
     type Error = PyErr;
 
     fn extract(ob: Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        ob.extract::<PyAnySerdeType>()
-            .or_else(|_| {
-                ob.extract::<PickleablePyAnySerdeType>()
-                    .map(|v| v.0.unwrap().unwrap())
-            })?
-            .try_into()
+        ob.extract::<PyAnySerdeType>()?.try_into()
     }
 }
 
@@ -230,10 +224,6 @@ impl<'py> FromPyObject<'_, 'py> for DynPyAnySerdeOption {
 
     fn extract(ob: Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
         ob.extract::<Option<PyAnySerdeType>>()
-            .or_else(|_| {
-                ob.extract::<PickleablePyAnySerdeType>()
-                    .map(|v| v.0.unwrap())
-            })
             .map(|pyany_serde_type_option| {
                 pyany_serde_type_option
                     .map(|pyany_serde_type| {

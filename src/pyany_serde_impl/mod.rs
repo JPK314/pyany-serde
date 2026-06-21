@@ -26,9 +26,7 @@ pub use dynamic_serde::DynamicSerde;
 pub use float_serde::FloatSerde;
 pub use int_serde::IntSerde;
 pub use list_serde::ListSerde;
-pub use numpy_serde::{
-    get_numpy_serde, NumpySerde, NumpySerdeConfig, NumpySerdeConfigKind, PickleableNumpySerdeConfig,
-};
+pub use numpy_serde::{get_numpy_serde, NumpySerde, NumpySerdeConfig, NumpySerdeConfigKind};
 pub use option_serde::OptionSerde;
 pub use pickle_serde::PickleSerde;
 pub use python_serde_serde::PythonSerdeSerde;

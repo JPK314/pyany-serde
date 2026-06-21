@@ -47,15 +47,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@nextest
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-          cache: "pip"
-          cache-dependency-path: "**/test_requirements.txt"
-      - run: pip install -r test_requirements.txt
+      - name: Create venv and install dependencies
+        run: uv sync
       - name: "Build and test"
-        run: cargo nextest run --workspace --all-targets
+        run: uv run cargo test
 
   musllinux:
     runs-on: ${{ matrix.platform.runner }}
@@ -73,15 +74,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@nextest
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-          cache: "pip"
-          cache-dependency-path: "**/test_requirements.txt"
-      - run: pip install -r test_requirements.txt
+      - name: Create venv and install dependencies
+        run: uv sync
       - name: "Build and test"
-        run: cargo nextest run --workspace --all-targets
+        run: uv run cargo test
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
@@ -94,16 +96,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@nextest
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.platform.target }}
-          cache: "pip"
-          cache-dependency-path: "**/test_requirements.txt"
-      - run: pip install -r test_requirements.txt
+      - name: Create venv and install dependencies
+        run: uv sync
       - name: "Build and test"
-        run: cargo nextest run --workspace --all-targets
+        run: uv run cargo test
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -115,12 +118,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@nextest
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-          cache: "pip"
-          cache-dependency-path: "**/test_requirements.txt"
-      - run: pip install -r test_requirements.txt
+      - name: Create venv and install dependencies
+        run: uv sync
       - name: "Build and test"
-        run: cargo nextest run --workspace --all-targets
+        run: uv run cargo test
