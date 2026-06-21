@@ -44,21 +44,18 @@ fn run_pickling_tests() -> PyResult<()> {
     Python::attach(|py| {
         let os = py.import("os")?;
         let environ = os.getattr("environ")?;
-        let environ = environ.cast::<PyDict>()?;
 
         println!(
             "PYTHONHOME={:?}",
             environ
-                .get_item("PYTHONHOME")?
-                .map(|v| v.extract::<String>())
-                .transpose()?
+                .call_method1("get", ("PYTHONHOME",))?
+                .extract::<Option<String>>()?
         );
         println!(
             "PYTHONPATH={:?}",
             environ
-                .get_item("PYTHONPATH")?
-                .map(|v| v.extract::<String>())
-                .transpose()?
+                .call_method1("get", ("PYTHONPATH",))?
+                .extract::<Option<String>>()?
         );
 
         let sys = py.import("sys").unwrap();
