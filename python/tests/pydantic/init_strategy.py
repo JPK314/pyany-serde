@@ -1,8 +1,9 @@
-# pyright: reportMissingImports=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownParameterType=false
 from typing import Any
 
 from pyany_serde import InitStrategy
-from pyany_serde.pydantic_init_strategy_tests import validate_eq
+from pyany_serde.pydantic_init_strategy_tests import (  # pyright:  ignore [reportMissingImports]
+    validate_eq,  # pyright: ignore [reportUnknownVariableType]
+)
 
 from pydantic import BaseModel
 

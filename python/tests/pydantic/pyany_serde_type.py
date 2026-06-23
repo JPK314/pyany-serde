@@ -1,21 +1,24 @@
-# pyright: reportMissingImports=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportMissingTypeArgument=false, reportImplicitRelativeImport=false
-
 import pickle
 import struct
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import numpy as np
+from numpy.typing import NDArray
 from pyany_serde import InitStrategy, NumpySerdeConfig, PyAnySerdeType
-from pyany_serde.pydantic_pyany_serde_type_tests import validate_eq
-from pyany_serde.python_serde import PythonSerde
+from pyany_serde.pydantic_pyany_serde_type_tests import (  # pyright:  ignore [reportMissingImports]
+    validate_eq,  # pyright: ignore [reportUnknownVariableType]
+)
+from pyany_serde.python_serde import (  # pyright: ignore [reportImplicitRelativeImport]
+    PythonSerde,
+)
 from typing_extensions import override
 
 from pydantic import BaseModel
 
 
 class MyModel(BaseModel):
-    my_field: PyAnySerdeType
+    my_field: PyAnySerdeType[Any]
 
 
 class MyClass:
@@ -29,6 +32,11 @@ class MyClass:
 
 @dataclass
 class MyDataclass:
+    a: int
+    b: str
+
+
+class MyTypedDict(TypedDict):
     a: int
     b: str
 
@@ -100,7 +108,7 @@ def validate_model_construction_flows(
 
 
 def test_bool():
-    expected = PyAnySerdeType.BOOL()
+    expected: PyAnySerdeType[bool] = PyAnySerdeType.BOOL()
     my_field_dict = {"type": "bool"}
     model_json = """
 {
@@ -113,7 +121,7 @@ def test_bool():
 
 
 def test_bytes():
-    expected = PyAnySerdeType.BYTES()
+    expected: PyAnySerdeType[bytes] = PyAnySerdeType.BYTES()
     my_field_dict = {"type": "bytes"}
     model_json = """
 {
@@ -126,7 +134,7 @@ def test_bytes():
 
 
 def test_complex():
-    expected = PyAnySerdeType.COMPLEX()
+    expected: PyAnySerdeType[complex] = PyAnySerdeType.COMPLEX()
     my_field_dict = {"type": "complex"}
     model_json = """
 {
@@ -139,7 +147,7 @@ def test_complex():
 
 
 def test_dataclass():
-    expected = PyAnySerdeType.DATACLASS(
+    expected: PyAnySerdeType[MyDataclass] = PyAnySerdeType.DATACLASS(
         MyDataclass,
         init_strategy=InitStrategy.ALL(),
         field_serde_type_dict={"a": PyAnySerdeType.INT(), "b": PyAnySerdeType.STRING()},
@@ -174,7 +182,7 @@ def test_dataclass():
 
 
 def test_dict():
-    expected = PyAnySerdeType.DICT(
+    expected: PyAnySerdeType[dict[str, int]] = PyAnySerdeType.DICT(
         PyAnySerdeType.STRING(),
         PyAnySerdeType.INT(),
     )
@@ -200,7 +208,7 @@ def test_dict():
 
 
 def test_dynamic():
-    expected = PyAnySerdeType.DYNAMIC()
+    expected: PyAnySerdeType[Any] = PyAnySerdeType.DYNAMIC()
     my_field_dict = {"type": "dynamic"}
     model_json = """
 {
@@ -213,7 +221,7 @@ def test_dynamic():
 
 
 def test_float():
-    expected = PyAnySerdeType.FLOAT()
+    expected: PyAnySerdeType[float] = PyAnySerdeType.FLOAT()
     my_field_dict = {"type": "float"}
     model_json = """
 {
@@ -226,7 +234,7 @@ def test_float():
 
 
 def test_int():
-    expected = PyAnySerdeType.INT()
+    expected: PyAnySerdeType[int] = PyAnySerdeType.INT()
     my_field_dict = {"type": "int"}
     model_json = """
 {
@@ -239,7 +247,7 @@ def test_int():
 
 
 def test_list():
-    expected = PyAnySerdeType.LIST(PyAnySerdeType.INT())
+    expected: PyAnySerdeType[list[int]] = PyAnySerdeType.LIST(PyAnySerdeType.INT())
     my_field_dict = {
         "type": "list",
         "items_serde_type": {"type": "int"},
@@ -257,8 +265,8 @@ def test_list():
     validate_model_construction_flows(expected, my_field_dict, model_json)
 
 
-def test_numpy():
-    expected = PyAnySerdeType.NUMPY(
+def test_numpy_dynamic():
+    expected: PyAnySerdeType[NDArray[np.int64]] = PyAnySerdeType.NUMPY(
         dtype=np.int64,
         config=NumpySerdeConfig.DYNAMIC(
             preprocessor_fn=preprocessor_fn,
@@ -290,8 +298,55 @@ def test_numpy():
     validate_model_construction_flows(expected, my_field_dict, model_json)
 
 
+def test_numpy_static():
+    expected: PyAnySerdeType[np.ndarray[tuple[Literal[2]], np.dtype[np.int64]]] = (
+        PyAnySerdeType.NUMPY(
+            dtype=np.int64,
+            config=NumpySerdeConfig.STATIC(
+                shape=(2,),
+                preprocessor_fn=preprocessor_fn,
+                postprocessor_fn=postprocessor_fn,
+                allocation_pool_min_size=0,
+                allocation_pool_max_size=10,
+                allocation_pool_warning_size=1,
+            ),
+        )
+    )
+    my_field_dict = {
+        "type": "numpy",
+        "dtype": "int64",
+        "config": {
+            "type": "static",
+            "shape": [2],
+            "preprocessor_fn_pkl": pickle.dumps(preprocessor_fn).hex(),
+            "postprocessor_fn_pkl": pickle.dumps(postprocessor_fn).hex(),
+            "allocation_pool_min_size": 0,
+            "allocation_pool_max_size": 10,
+            "allocation_pool_warning_size": 1,
+        },
+    }
+    model_json = f"""
+{{
+    "my_field": {{
+        "type": "numpy",
+        "dtype": "int64",
+        "config": {{
+            "type": "static",
+            "shape": [2],
+            "preprocessor_fn_pkl": "{pickle.dumps(preprocessor_fn).hex()}",
+            "postprocessor_fn_pkl": "{pickle.dumps(postprocessor_fn).hex()}",
+            "allocation_pool_min_size": 0,
+            "allocation_pool_max_size": 10,
+            "allocation_pool_warning_size": 1
+        }}
+    }}
+}}
+"""
+    validate_model_construction_flows(expected, my_field_dict, model_json)
+
+
 def test_option():
-    expected = PyAnySerdeType.OPTION(PyAnySerdeType.INT())
+    expected: PyAnySerdeType[int | None] = PyAnySerdeType.OPTION(PyAnySerdeType.INT())
     my_field_dict = {
         "type": "option",
         "value_serde_type": {"type": "int"},
@@ -310,7 +365,7 @@ def test_option():
 
 
 def test_pickle():
-    expected = PyAnySerdeType.PICKLE()
+    expected: PyAnySerdeType[Any] = PyAnySerdeType.PICKLE()
     my_field_dict = {"type": "pickle"}
     model_json = """
 {
@@ -323,7 +378,7 @@ def test_pickle():
 
 
 def test_pythonserde():
-    expected = PyAnySerdeType.PYTHONSERDE(MySerde())
+    expected: PyAnySerdeType[MyClass] = PyAnySerdeType.PYTHONSERDE(MySerde())
     my_field_dict = {
         "type": "pythonserde",
         "pythonserde_pkl": pickle.dumps(MySerde()).hex(),
@@ -340,7 +395,7 @@ def test_pythonserde():
 
 
 def test_set():
-    expected = PyAnySerdeType.SET(PyAnySerdeType.INT())
+    expected: PyAnySerdeType[set[int]] = PyAnySerdeType.SET(PyAnySerdeType.INT())
     my_field_dict = {
         "type": "set",
         "items_serde_type": {"type": "int"},
@@ -359,7 +414,7 @@ def test_set():
 
 
 def test_string():
-    expected = PyAnySerdeType.STRING()
+    expected: PyAnySerdeType[str] = PyAnySerdeType.STRING()
     my_field_dict = {"type": "string"}
     model_json = """
 {
@@ -372,7 +427,9 @@ def test_string():
 
 
 def test_tuple():
-    expected = PyAnySerdeType.TUPLE([PyAnySerdeType.INT(), PyAnySerdeType.STRING()])
+    expected: PyAnySerdeType[tuple[int, str]] = PyAnySerdeType.TUPLE(
+        [PyAnySerdeType.INT(), PyAnySerdeType.STRING()]
+    )
     my_field_dict = {
         "type": "tuple",
         "item_serde_types": [
@@ -399,8 +456,7 @@ def test_tuple():
 
 
 def test_typeddict():
-
-    expected = PyAnySerdeType.TYPEDDICT(
+    expected: PyAnySerdeType[MyTypedDict] = PyAnySerdeType.TYPEDDICT(
         {"a": PyAnySerdeType.INT(), "b": PyAnySerdeType.STRING()}
     )
     my_field_dict = {
@@ -426,8 +482,7 @@ def test_typeddict():
 
 
 def test_union():
-
-    expected = PyAnySerdeType.UNION(
+    expected: PyAnySerdeType[int | str] = PyAnySerdeType.UNION(
         [PyAnySerdeType.INT(), PyAnySerdeType.STRING()],
         option_choice_fn=option_choice_fn,
     )

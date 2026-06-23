@@ -1,9 +1,9 @@
-# pyright: reportMissingImports=false, reportUnknownVariableType=false
-
 import pickle
 
 from pyany_serde import InitStrategy
-from pyany_serde.pickling_init_strategy_tests import validate_eq
+from pyany_serde.pickling_init_strategy_tests import (  # pyright:  ignore [reportMissingImports]
+    validate_eq,  # pyright: ignore [reportUnknownVariableType]
+)
 
 
 def test_all():

@@ -1,11 +1,11 @@
-# pyright: reportMissingImports=false, reportUnknownVariableType=false
-
 import pickle
 from typing import Literal
 
 import numpy as np
 from pyany_serde import NumpySerdeConfig
-from pyany_serde.pickling_numpy_serde_config_tests import validate_eq
+from pyany_serde.pickling_numpy_serde_config_tests import (  # pyright:  ignore [reportMissingImports]
+    validate_eq,  # pyright: ignore [reportUnknownVariableType]
+)
 
 
 class MyClass:
