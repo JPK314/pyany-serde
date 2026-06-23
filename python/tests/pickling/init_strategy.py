@@ -1,27 +1,24 @@
-# pyright: reportMissingImports=false, reportUnknownVariableType=false
-
 import pickle
 
 from pyany_serde import InitStrategy
-from pyany_serde.pickling_init_strategy_tests import validate_eq
+from pyany_serde.pickling_init_strategy_tests import (  # pyright:  ignore [reportMissingImports]
+    validate_eq,  # pyright: ignore [reportUnknownVariableType]
+)
 
 
 def test_all():
-    v = InitStrategy.ALL()
-    w = pickle.dumps(v)
-    x = pickle.loads(w)
-    validate_eq(x, v)
+    expected = InitStrategy.ALL()
+    actual = pickle.loads(pickle.dumps(expected))
+    validate_eq(expected, actual, "$")
 
 
 def test_some():
-    v = InitStrategy.SOME(kwargs=["a", "b"])
-    w = pickle.dumps(v)
-    x = pickle.loads(w)
-    validate_eq(x, v)
+    expected = InitStrategy.SOME(kwargs=["a", "b"])
+    actual = pickle.loads(pickle.dumps(expected))
+    validate_eq(expected, actual, "$")
 
 
 def test_none():
-    v = InitStrategy.NONE()
-    w = pickle.dumps(v)
-    x = pickle.loads(w)
-    validate_eq(x, v)
+    expected = InitStrategy.NONE()
+    actual = pickle.loads(pickle.dumps(expected))
+    validate_eq(expected, actual, "$")

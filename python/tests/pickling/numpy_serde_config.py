@@ -1,11 +1,11 @@
-# pyright: reportMissingImports=false, reportUnknownVariableType=false
-
 import pickle
 from typing import Literal
 
 import numpy as np
 from pyany_serde import NumpySerdeConfig
-from pyany_serde.pickling_numpy_serde_config_tests import validate_eq
+from pyany_serde.pickling_numpy_serde_config_tests import (  # pyright:  ignore [reportMissingImports]
+    validate_eq,  # pyright: ignore [reportUnknownVariableType]
+)
 
 
 class MyClass:
@@ -26,16 +26,15 @@ def postprocessor_fn(v: np.ndarray[tuple[Literal[2]], np.dtype[np.int64]]):
 
 
 def test_dynamic():
-    v = NumpySerdeConfig.DYNAMIC(
+    expected = NumpySerdeConfig.DYNAMIC(
         preprocessor_fn=preprocessor_fn, postprocessor_fn=postprocessor_fn
     )
-    w = pickle.dumps(v)
-    x = pickle.loads(w)
-    validate_eq(x, v)
+    actual = pickle.loads(pickle.dumps(expected))
+    validate_eq(expected, actual, "$")
 
 
 def test_static():
-    v = NumpySerdeConfig.STATIC(
+    expected = NumpySerdeConfig.STATIC(
         shape=(2,),
         preprocessor_fn=preprocessor_fn,
         postprocessor_fn=postprocessor_fn,
@@ -43,6 +42,5 @@ def test_static():
         allocation_pool_min_size=0,
         allocation_pool_warning_size=1,
     )
-    w = pickle.dumps(v)
-    x = pickle.loads(w)
-    validate_eq(x, v)
+    actual = pickle.loads(pickle.dumps(expected))
+    validate_eq(expected, actual, "$")

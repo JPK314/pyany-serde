@@ -114,7 +114,7 @@ fn pyany_serde_type_constructor_aux<'py>(
         }
         "pickle" => PyAnySerdeType::PICKLE {},
         "pythonserde" => PyAnySerdeType::PYTHONSERDE {
-            python_serde: unpickle_field(py, data, "python_serde_pkl", context)?.unbind(),
+            python_serde: unpickle_field(py, data, "pythonserde_pkl", context)?.unbind(),
         },
         "set" => {
             let items_serde_type_data = data.get_item("items_serde_type")?;
@@ -261,7 +261,7 @@ pub fn pyany_serde_type_serializer<'py>(
         )?;
     } else if let PyAnySerdeType::PYTHONSERDE { python_serde } = pyany_serde_type {
         data.set_item(
-            "python_serde_pkl",
+            "pythonserde_pkl",
             py.import("pickle")?
                 .getattr("dumps")?
                 .call1((python_serde,))?
@@ -435,7 +435,7 @@ pub fn get_pyany_serde_type_typed_dict_schema<'py>(
         }
         PyAnySerdeTypeKind::PYTHONSERDE => {
             typed_dict_fields.set_item(
-                "python_serde_pkl",
+                "pythonserde_pkl",
                 typed_dict_field.call1((str_schema.call0()?,))?,
             )?;
         }
