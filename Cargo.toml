@@ -27,7 +27,7 @@ itertools = "0.13.0"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
 numpy = "0.29.0"
-paste = { package = "pastey", version = "*" }
+paste = { package = "pastey", version = "0.2.3" }
 pyo3 = { version = "0.29.0", features = ["py-clone", "multiple-pymethods"] }
 raw_sync = "0.1.5"
 shared_memory = "0.12.4"
