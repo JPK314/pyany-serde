@@ -50,4 +50,4 @@ jobs:
       - name: Sync python using uv.lock
         run: uv sync --no-managed-python
       - name: "Build and test"
-        run: uv run cargo test -- --nocapture
+        run: uv run cargo test -- --nocapture --test-threads=1
