@@ -31,7 +31,7 @@ jobs:
         with:
           enable-cache: true
       - name: Create venv and install dependencies
-        run: uv sync --no-managed-python
-      - run: uv run python -c "import os, sys; print(sys.executable); print(sys.prefix); print(os.environ.get('VIRTUAL_ENV'))"
+        run: uv sync --system --no-managed-python
+      - run: uv run --system python -c "import os, sys; print(sys.executable); print(sys.prefix); print(os.environ.get('VIRTUAL_ENV'))"
       - name: "Build and test"
         run: uv run cargo test -- --nocapture
