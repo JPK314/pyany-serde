@@ -1,4 +1,4 @@
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::prelude::*;
 
 use crate::{pyany_serde_impl::InitStrategy, tests::run_python_test_file};
 
@@ -38,52 +38,7 @@ fn tests_submod<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
 
 #[test]
 fn run_pickling_tests() -> PyResult<()> {
-    println!("VIRTUAL_ENV: {}", std::env::var("VIRTUAL_ENV").unwrap());
-    println!("PATH: {}", std::env::var("PATH").unwrap());
     Python::initialize();
-    Python::attach(|py| {
-        let os = py.import("os")?;
-        let environ = os.getattr("environ")?;
-
-        println!(
-            "PYTHONHOME={:?}",
-            environ
-                .call_method1("get", ("PYTHONHOME",))?
-                .extract::<Option<String>>()?
-        );
-        println!(
-            "PYTHONPATH={:?}",
-            environ
-                .call_method1("get", ("PYTHONPATH",))?
-                .extract::<Option<String>>()?
-        );
-
-        let sys = py.import("sys").unwrap();
-
-        println!(
-            "sys.executable = {:?}",
-            sys.getattr("executable")
-                .unwrap()
-                .extract::<String>()
-                .unwrap()
-        );
-        println!(
-            "sys.prefix = {:?}",
-            sys.getattr("prefix").unwrap().extract::<String>().unwrap()
-        );
-        println!(
-            "sys.base_prefix = {:?}",
-            sys.getattr("base_prefix")
-                .unwrap()
-                .extract::<String>()
-                .unwrap()
-        );
-        println!(
-            "sys.path = {:?}",
-            sys.getattr("path").unwrap().repr().unwrap()
-        );
-        Ok::<_, PyErr>(())
-    })?;
     Python::attach(|py| {
         run_python_test_file(
             py,
