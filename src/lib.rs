@@ -12,4 +12,4 @@ mod tests;
 
 pub use pyany_serde::DynPyAnySerdeOption;
 pub use pyany_serde::PyAnySerde;
-pub use pyany_serde_type::PyAnySerdeType;
+pub use pyany_serde_type::{PyAnySerdeType, PyAnySerdeTypeKind};
