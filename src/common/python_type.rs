@@ -1,10 +1,10 @@
 use numpy::PyArrayDyn;
+use pyo3::Bound;
 use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::prelude::*;
 use pyo3::types::{
     PyBool, PyBytes, PyComplex, PyDict, PyFloat, PyInt, PyList, PySet, PyString, PyTuple,
 };
-use pyo3::Bound;
 
 use super::numpy_dtype_enum::NumpyDtype;
 
@@ -190,13 +190,13 @@ pub fn detect_python_type<'py>(v: &Bound<'py, PyAny>) -> PyResult<PythonType> {
     if v.is_exact_instance_of::<PyDict>() {
         return Ok(PythonType::DICT);
     }
-    return Ok(PythonType::OTHER);
+    Ok(PythonType::OTHER)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pyo3::{ffi::c_str, PyResult, Python};
+    use pyo3::{PyResult, Python, ffi::c_str};
 
     #[test]
     fn python_test_detect_python_type_numpy() -> PyResult<()> {

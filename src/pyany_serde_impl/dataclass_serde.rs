@@ -121,9 +121,9 @@ impl InitStrategyKind {
 
 #[derive(Clone, Debug)]
 pub enum InternalInitStrategy {
-    ALL(Py<PyDict>),
-    SOME(Py<PyDict>, HashSet<usize>),
-    NONE,
+    All(Py<PyDict>),
+    Some(Py<PyDict>, HashSet<usize>),
+    None,
 }
 
 impl DataclassSerde {
@@ -139,7 +139,7 @@ impl DataclassSerde {
                     .map(|(field, _)| (field, None::<Py<PyAny>>))
                     .collect::<Vec<_>>();
                 let kwargs = PyDict::from_sequence(&kwargs_kv_list.into_pyobject(py)?)?.unbind();
-                Ok(InternalInitStrategy::ALL(kwargs))
+                Ok(InternalInitStrategy::All(kwargs))
             })?,
             InitStrategy::SOME { kwargs } => Python::attach::<_, PyResult<_>>(|py| {
                 let init_field_idxs = kwargs.iter().map(|init_field| field_serde_kv_list.iter().position(|(field, _)| field.to_string() == *init_field).ok_or_else(|| PyValueError::new_err(format!("field name {} provided in InitStrategy_SOME not contained in field_serde_kv_list", init_field)))).collect::<PyResult<HashSet<_>>>()?;
@@ -150,9 +150,9 @@ impl DataclassSerde {
                     .map(|(_, (field, _))| (field, None::<Py<PyAny>>))
                     .collect::<Vec<_>>();
                 let kwargs = PyDict::from_sequence(&kwargs_kv_list.into_pyobject(py)?)?.unbind();
-                Ok(InternalInitStrategy::SOME(kwargs, init_field_idxs))
+                Ok(InternalInitStrategy::Some(kwargs, init_field_idxs))
             })?,
-            InitStrategy::NONE {} => InternalInitStrategy::NONE,
+            InitStrategy::NONE {} => InternalInitStrategy::None,
         };
         Ok(DataclassSerde {
             class,
@@ -201,14 +201,14 @@ impl PyAnySerde for DataclassSerde {
         }
         let class = self.class.bind(py);
         let obj = match &self.init_strategy {
-            InternalInitStrategy::ALL(py_kwargs) => {
+            InternalInitStrategy::All(py_kwargs) => {
                 let kwargs = py_kwargs.bind(py);
                 for (field, field_value) in kv_list.iter() {
                     kwargs.set_item(field, field_value)?;
                 }
                 class.call((), Some(kwargs))?
             }
-            InternalInitStrategy::SOME(py_kwargs, init_field_idxs) => {
+            InternalInitStrategy::Some(py_kwargs, init_field_idxs) => {
                 let kwargs = py_kwargs.bind(py);
                 let (init_kv_list, other_kv_list) = kv_list
                     .into_iter()
@@ -223,7 +223,7 @@ impl PyAnySerde for DataclassSerde {
                 }
                 obj
             }
-            InternalInitStrategy::NONE => {
+            InternalInitStrategy::None => {
                 let obj = class.call0()?;
                 for (field, field_value) in kv_list.iter() {
                     obj.setattr(field, field_value)?;

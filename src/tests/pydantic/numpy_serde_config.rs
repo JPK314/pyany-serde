@@ -12,7 +12,9 @@ fn tests_submod<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
 
 #[test]
 fn run_pydantic_tests() -> PyResult<()> {
-    env::set_var("PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT", "1");
+    unsafe {
+        env::set_var("PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT", "1");
+    }
     Python::initialize();
     Python::attach(|py| {
         run_python_test_file(

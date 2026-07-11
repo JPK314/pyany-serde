@@ -1,14 +1,15 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use pyo3::{
+    PyTypeInfo,
     exceptions::PyValueError,
     prelude::*,
     types::{PyDict, PyFunction, PyType},
-    PyTypeInfo,
 };
 use strum::IntoEnumIterator;
 
 use crate::{
+    PyAnySerdeType,
     common::NumpyDtype,
     pyany_serde_type::PyAnySerdeTypeKind,
     pydantic::{
@@ -23,7 +24,6 @@ use crate::{
         },
         unpickling::unpickle_field,
     },
-    PyAnySerdeType,
 };
 
 fn pyany_serde_type_constructor_aux<'py>(
@@ -302,7 +302,7 @@ pub fn pyany_serde_type_serializer<'py>(
             "option_serde_types",
             option_serde_types
                 .iter()
-                .map(|item_serde_type| pyany_serde_type_serializer(py, &item_serde_type))
+                .map(|item_serde_type| pyany_serde_type_serializer(py, item_serde_type))
                 .collect::<PyResult<Vec<_>>>()?,
         )?;
         data.set_item(
@@ -376,7 +376,7 @@ pub fn get_pyany_serde_type_typed_dict_schema<'py>(
                 typed_dict_field.call1((get_init_strategy_typed_dict_schema(
                     py,
                     &None,
-                    &core_schema,
+                    core_schema,
                 )?,))?,
             )?;
             typed_dict_fields.set_item(
@@ -425,7 +425,7 @@ pub fn get_pyany_serde_type_typed_dict_schema<'py>(
                 typed_dict_field.call1((get_numpy_serde_config_typed_dict_schema(
                     py,
                     &None,
-                    &core_schema,
+                    core_schema,
                 )?,))?,
             )?;
         }

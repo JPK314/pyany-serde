@@ -1,13 +1,13 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use dyn_clone::{clone_trait_object, DynClone};
+use dyn_clone::{DynClone, clone_trait_object};
 
 use crate::communication::{append_bool, append_bool_vec, retrieve_bool};
 use crate::pyany_serde_impl::{
-    get_numpy_serde, BoolSerde, BytesSerde, ComplexSerde, DataclassSerde, DictSerde, DynamicSerde,
-    FloatSerde, IntSerde, ListSerde, OptionSerde, PickleSerde, PythonSerdeSerde, SetSerde,
-    StringSerde, TupleSerde, TypedDictSerde, UnionSerde,
+    BoolSerde, BytesSerde, ComplexSerde, DataclassSerde, DictSerde, DynamicSerde, FloatSerde,
+    IntSerde, ListSerde, OptionSerde, PickleSerde, PythonSerdeSerde, SetSerde, StringSerde,
+    TupleSerde, TypedDictSerde, UnionSerde, get_numpy_serde,
 };
 use crate::pyany_serde_type::PyAnySerdeType;
 
@@ -143,9 +143,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             PyAnySerdeType::LIST { items_serde_type } => Box::new(ListSerde {
                 items_serde: items_serde_type.try_into()?,
             }),
-            PyAnySerdeType::NUMPY { dtype, config } => {
-                get_numpy_serde(dtype.clone(), config.clone())
-            }
+            PyAnySerdeType::NUMPY { dtype, config } => get_numpy_serde(*dtype, config.clone()),
 
             PyAnySerdeType::OPTION { value_serde_type } => Box::new(OptionSerde {
                 value_serde: value_serde_type.try_into()?,
@@ -164,7 +162,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             PyAnySerdeType::STRING {} => Box::new(StringSerde {}),
             PyAnySerdeType::TUPLE { item_serde_types } => Box::new(TupleSerde {
                 item_serdes: item_serde_types
-                    .into_iter()
+                    .iter()
                     .map(|item| item.try_into())
                     .collect::<PyResult<_>>()?,
             }),
@@ -172,7 +170,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
                 key_serde_type_dict,
             } => Python::attach::<_, PyResult<_>>(|py| {
                 let serde_kv_list = key_serde_type_dict
-                    .into_iter()
+                    .iter()
                     .map(|(key, item_serde_type)| {
                         item_serde_type.try_into().map(|pyany_serde| {
                             (PyString::new(py, key.as_str()).unbind(), pyany_serde)
@@ -187,7 +185,7 @@ impl<'a> TryFrom<&'a PyAnySerdeType> for Box<dyn PyAnySerde> {
             } => Python::attach::<_, PyResult<_>>(|py| {
                 Ok(Box::new(UnionSerde {
                     option_serdes: option_serde_types
-                        .into_iter()
+                        .iter()
                         .map(|item| item.try_into())
                         .collect::<PyResult<_>>()?,
                     option_choice_fn: option_choice_fn.clone_ref(py),
@@ -227,9 +225,7 @@ impl<'py> FromPyObject<'_, 'py> for DynPyAnySerdeOption {
             .map(|pyany_serde_type_option| {
                 pyany_serde_type_option
                     .map(|pyany_serde_type| {
-                        pyany_serde_type
-                            .try_into()
-                            .map(|pyany_serde| DynPyAnySerdeOption::Some(pyany_serde))
+                        pyany_serde_type.try_into().map(DynPyAnySerdeOption::Some)
                     })
                     .unwrap_or(Ok(DynPyAnySerdeOption::None))
             })?

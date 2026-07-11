@@ -1,22 +1,22 @@
 use std::env;
 
-use bytemuck::{cast_slice, AnyBitPattern, NoUninit};
+use bytemuck::{AnyBitPattern, NoUninit, cast_slice};
 use enum_kinds::EnumKind;
 use numpy::ndarray::ArrayD;
 use numpy::{Element, PyArrayDyn, PyArrayMethods, PyUntypedArrayMethods};
 use numpy::{IntoPyArray, PyArray};
-use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::asyncio::InvalidStateError;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyDict, PyList, PyType};
-use pyo3::{intern, prelude::*, PyTypeInfo};
+use pyo3::{PyTypeInfo, intern, prelude::*};
 use strum_macros::{Display, EnumIter};
 
 use crate::communication::{append_bytes_vec, append_usize, append_usize_vec, retrieve_usize};
 use crate::{
-    common::{get_bytes_to_alignment, NumpyDtype},
-    communication::{append_bytes, retrieve_bytes},
     PyAnySerde,
+    common::{NumpyDtype, get_bytes_to_alignment},
+    communication::{append_bytes, retrieve_bytes},
 };
 
 // TODO: remove preprocessor and postprocessor fns
@@ -107,7 +107,9 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
         array: &Bound<'py, PyArrayDyn<T>>,
     ) -> PyResult<()> {
         let Some(start_addr) = start_addr else {
-            Err(InvalidStateError::new_err("Tried to serialize numpy data, but there was no start_addr provided so there's no way to know how to align the data. (was this called from inside a preprocessor function?)"))?
+            Err(InvalidStateError::new_err(
+                "Tried to serialize numpy data, but there was no start_addr provided so there's no way to know how to align the data. (was this called from inside a preprocessor function?)",
+            ))?
         };
         match &self.config {
             NumpySerdeConfig::DYNAMIC { .. } => {
@@ -202,32 +204,32 @@ impl<T: Element + AnyBitPattern + NoUninit> NumpySerde<T> {
                             self.allocation_pool.push(arr.clone().unbind());
                         }
                         py_array = arr;
-                        if let Some(allocation_pool_warning_size) = allocation_pool_warning_size {
-                            if pool_size > *allocation_pool_warning_size {
-                                if pool_size % 100 == 0 {
-                                    let recursion_depth = env::var(
-                                        "PYANY_SERDE_NUMPY_ALLOCATION_WARNING_RECUSION_DEPTH",
-                                    )
+                        if let Some(allocation_pool_warning_size) = allocation_pool_warning_size
+                            && pool_size > *allocation_pool_warning_size
+                            && pool_size.is_multiple_of(100)
+                        {
+                            let recursion_depth =
+                                env::var("PYANY_SERDE_NUMPY_ALLOCATION_WARNING_RECUSION_DEPTH")
                                     .map(|v| v.parse::<usize>().unwrap_or(5))
                                     .unwrap_or(5);
-                                    println!("Warning: the allocation pool for this Numpy PyAny serde instance is currently {pool_size}, which is larger than the warning limit set ({allocation_pool_warning_size}). Here is a random element from the allocation pool and a dict of the types of its referrers (and the referrers of those referrers, etc, up to the recursion depth set by PYANY_SERDE_NUMPY_ALLOCATION_WARNING_RECUSION_DEPTH (5 by default)):");
-                                    let mut total_in_use = 0;
-                                    for item in self.allocation_pool.iter() {
-                                        if unsafe { pyo3::ffi::Py_REFCNT(item.as_ptr()) } > 1 {
-                                            total_in_use += 1;
-                                        }
-                                    }
-                                    println!("Number of elements in allocation pool which are currently in use: {total_in_use}");
-                                    let idx = fastrand::usize(..pool_size);
-                                    let e = &self.allocation_pool[idx];
-                                    println!(
-                                        "{}\n\n",
-                                        get_ref_types(e.bind(py), recursion_depth)?
-                                            .repr()?
-                                            .to_string()
-                                    );
+                            println!(
+                                "Warning: the allocation pool for this Numpy PyAny serde instance is currently {pool_size}, which is larger than the warning limit set ({allocation_pool_warning_size}). Here is a random element from the allocation pool and a dict of the types of its referrers (and the referrers of those referrers, etc, up to the recursion depth set by PYANY_SERDE_NUMPY_ALLOCATION_WARNING_RECUSION_DEPTH (5 by default)):"
+                            );
+                            let mut total_in_use = 0;
+                            for item in self.allocation_pool.iter() {
+                                if unsafe { pyo3::ffi::Py_REFCNT(item.as_ptr()) } > 1 {
+                                    total_in_use += 1;
                                 }
                             }
+                            println!(
+                                "Number of elements in allocation pool which are currently in use: {total_in_use}"
+                            );
+                            let idx = fastrand::usize(..pool_size);
+                            let e = &self.allocation_pool[idx];
+                            println!(
+                                "{}\n\n",
+                                get_ref_types(e.bind(py), recursion_depth)?.repr()?
+                            );
                         }
                     }
                     unsafe { py_array.as_slice_mut().unwrap().copy_from_slice(&array_vec) };

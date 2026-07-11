@@ -42,17 +42,15 @@ fn unpickle_field_hex<'py>(
     let pickle_loads = INTERNED_PICKLE_LOADS
         .get_or_try_init::<_, PyErr>(py, || Ok(py.import("pickle")?.getattr("loads")?.unbind()))?
         .bind(py);
-    Ok::<_, PyErr>(pickle_loads.call1((PyBytes::new(
+    pickle_loads.call1((PyBytes::new(
         py,
         &hex::decode(field_hex.as_str()).map_err(|err| {
             PyValueError::new_err(format!(
                 "{}.{} could not be decoded from hex into bytes: {}",
-                context.path,
-                field,
-                err.to_string()
+                context.path, field, err
             ))
         })?,
-    ),))?)
+    ),))
 }
 
 fn prompt_for_unpickling(context: &mut ValidationContext, final_key: &str) -> PyResult<()> {
@@ -65,18 +63,28 @@ fn prompt_for_unpickling(context: &mut ValidationContext, final_key: &str) -> Py
         } else {
             format!("{}.{}", context.path, final_key)
         };
-        println!("WARNING: About to call unpickle on the hexadecimal-encoded binary contents of the model field {fieldpath}. If you do not trust the origins of this json, or you cannot otherwise verify the safety of this field's contents, you should not proceed.");
-        print!("Proceed? 'y' for yes, 'a' for yes to all pickled strings for this model field, 'n' for no. (Default 'n'):\t");
+        println!(
+            "WARNING: About to call unpickle on the hexadecimal-encoded binary contents of the model field {fieldpath}. If you do not trust the origins of this json, or you cannot otherwise verify the safety of this field's contents, you should not proceed."
+        );
+        print!(
+            "Proceed? 'y' for yes, 'a' for yes to all pickled strings for this model field, 'n' for no. (Default 'n'):\t"
+        );
         io::stdout().flush()?;
         let mut response = String::new();
         io::stdin().read_line(&mut response).unwrap();
         if response.trim().eq_ignore_ascii_case("y") {
-            println!("Continuing with execution. If you would like to ignore this warning in the future, set the environment variable PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT to \"1\".\n");
+            println!(
+                "Continuing with execution. If you would like to ignore this warning in the future, set the environment variable PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT to \"1\".\n"
+            );
         } else if response.trim().eq_ignore_ascii_case("a") {
-            println!("Continuing with execution. If you would like to ignore this warning in the future, set the environment variable PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT to \"1\".\n");
+            println!(
+                "Continuing with execution. If you would like to ignore this warning in the future, set the environment variable PYANY_SERDE_UNPICKLE_WITHOUT_PROMPT to \"1\".\n"
+            );
             context.prompt_for_unpickle = false;
         } else {
-            Err(PyValueError::new_err("Operation cancelled by user due to unpickling required to build config model from json"))?
+            Err(PyValueError::new_err(
+                "Operation cancelled by user due to unpickling required to build config model from json",
+            ))?
         }
     }
     Ok(())

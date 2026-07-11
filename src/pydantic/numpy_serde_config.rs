@@ -41,11 +41,12 @@ pub fn numpy_serde_config_constructor_aux<'py>(
             let allocation_pool_warning_size = data
                 .get_item("allocation_pool_warning_size")?
                 .extract::<Option<usize>>()?;
-            if allocation_pool_max_size.is_some()
-                && allocation_pool_min_size > allocation_pool_max_size.unwrap()
+            if let Some(allocation_pool_max_size) = allocation_pool_max_size
+                && allocation_pool_min_size > allocation_pool_max_size
             {
                 Err(PyValueError::new_err(format!(
-                    "Validation error: allocation_pool_min_size ({}) cannot be greater than allocation_pool_max_size ({})", allocation_pool_min_size, allocation_pool_max_size.unwrap()
+                    "Validation error: allocation_pool_min_size ({}) cannot be greater than allocation_pool_max_size ({})",
+                    allocation_pool_min_size, allocation_pool_max_size
                 )))?
             }
             Ok(NumpySerdeConfig::STATIC {
@@ -56,11 +57,10 @@ pub fn numpy_serde_config_constructor_aux<'py>(
                 allocation_pool_max_size,
                 allocation_pool_warning_size,
             })
-        },
+        }
         v => Err(PyValueError::new_err(format!(
             "Unexpected value '{}' for field: {}.type. Allowed values are 'all', 'some', or 'none'.",
-            v,
-            context.path
+            v, context.path
         ))),
     }
 }
@@ -93,24 +93,20 @@ pub fn numpy_serde_config_serializer<'py>(
             let preprocessor_fn_pkl = preprocessor_fn
                 .as_ref()
                 .map(|preprocessor_fn| {
-                    Ok::<_, PyErr>(
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((preprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )
+                    py.import("pickle")?
+                        .getattr("dumps")?
+                        .call1((preprocessor_fn,))?
+                        .call_method0("hex")
                 })
                 .transpose()?;
             data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
             let postprocessor_fn_pkl = postprocessor_fn
                 .as_ref()
                 .map(|postprocessor_fn| {
-                    Ok::<_, PyErr>(
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((postprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )
+                    py.import("pickle")?
+                        .getattr("dumps")?
+                        .call1((postprocessor_fn,))?
+                        .call_method0("hex")
                 })
                 .transpose()?;
             data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;
@@ -126,24 +122,20 @@ pub fn numpy_serde_config_serializer<'py>(
             let preprocessor_fn_pkl = preprocessor_fn
                 .as_ref()
                 .map(|preprocessor_fn| {
-                    Ok::<_, PyErr>(
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((preprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )
+                    py.import("pickle")?
+                        .getattr("dumps")?
+                        .call1((preprocessor_fn,))?
+                        .call_method0("hex")
                 })
                 .transpose()?;
             data.set_item("preprocessor_fn_pkl", preprocessor_fn_pkl)?;
             let postprocessor_fn_pkl = postprocessor_fn
                 .as_ref()
                 .map(|postprocessor_fn| {
-                    Ok::<_, PyErr>(
-                        py.import("pickle")?
-                            .getattr("dumps")?
-                            .call1((postprocessor_fn,))?
-                            .call_method0("hex")?,
-                    )
+                    py.import("pickle")?
+                        .getattr("dumps")?
+                        .call1((postprocessor_fn,))?
+                        .call_method0("hex")
                 })
                 .transpose()?;
             data.set_item("postprocessor_fn_pkl", postprocessor_fn_pkl)?;

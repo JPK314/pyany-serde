@@ -6,9 +6,9 @@ use std::{
 use strum::IntoEnumIterator;
 
 use crate::{
+    PyAnySerdeType,
     pyany_serde_impl::{InitStrategy, InitStrategyKind, NumpySerdeConfig, NumpySerdeConfigKind},
     pyany_serde_type::PyAnySerdeTypeKind,
-    PyAnySerdeType,
 };
 
 fn validate_fn_eq<'py>(
@@ -41,7 +41,7 @@ fn validate_fn_eq<'py>(
 }
 
 #[pyfunction(name = "validate_eq")]
-pub fn validate_init_strategy_eq<'py>(
+pub fn validate_init_strategy_eq(
     expected: &InitStrategy,
     actual: &InitStrategy,
     field: String,
@@ -89,7 +89,9 @@ pub fn validate_numpy_serde_config_eq<'py>(
                 postprocessor_fn: expected_postprocessor_fn,
             } = expected.clone()
             else {
-                panic!("Expected field {field} to be NumpySerdeConfig::DYNAMIC {{..}} but was {actual}");
+                panic!(
+                    "Expected field {field} to be NumpySerdeConfig::DYNAMIC {{..}} but was {actual}"
+                );
             };
             validate_fn_eq(
                 &actual_preprocessor_fn.map(|v| v.into_bound(py)),
@@ -139,8 +141,7 @@ pub fn validate_numpy_serde_config_eq<'py>(
                 format!("{field}.postprocessor_fn"),
             )?;
             assert_eq!(
-                expected_allocation_pool_min_size,
-                actual_allocation_pool_min_size,
+                expected_allocation_pool_min_size, actual_allocation_pool_min_size,
                 "Expected field {field}.allocation_pool_min_size to be {expected_allocation_pool_min_size} but was {actual_allocation_pool_min_size}",
             );
             assert_eq!(
@@ -218,7 +219,9 @@ pub fn validate_pyany_serde_type_eq<'py>(
                 field_serde_type_dict: expected_field_serde_type_dict,
             } = expected.clone()
             else {
-                panic!("Expected field {field} to be PyAnySerdeType::DATACLASS {{..}} but was {actual}");
+                panic!(
+                    "Expected field {field} to be PyAnySerdeType::DATACLASS {{..}} but was {actual}"
+                );
             };
             let actual_clazz = actual_clazz.bind(py);
             let expected_clazz = expected_clazz.bind(py);
