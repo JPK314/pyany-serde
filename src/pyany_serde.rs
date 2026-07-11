@@ -34,7 +34,7 @@ pub trait PyAnySerde: DynClone {
         &mut self,
         buf: &mut [u8],
         mut offset: usize,
-        obj_option: &Option<&Bound<'py, PyAny>>,
+        obj_option: &Option<Bound<'py, PyAny>>,
     ) -> PyResult<usize> {
         if let Some(obj) = obj_option {
             offset = append_bool(buf, offset, true);
@@ -48,7 +48,7 @@ pub trait PyAnySerde: DynClone {
         &mut self,
         v: &mut Vec<u8>,
         start_addr: Option<usize>,
-        obj_option: &Option<&Bound<'py, PyAny>>,
+        obj_option: &Option<Bound<'py, PyAny>>,
     ) -> PyResult<()> {
         if let Some(obj) = obj_option {
             append_bool_vec(v, true);

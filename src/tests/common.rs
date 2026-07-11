@@ -12,8 +12,8 @@ use crate::{
 };
 
 fn validate_fn_eq<'py>(
-    actual_fn_option: Option<&Bound<'py, PyAny>>,
-    expected_fn_option: Option<&Bound<'py, PyAny>>,
+    actual_fn_option: &Option<Bound<'py, PyAny>>,
+    expected_fn_option: &Option<Bound<'py, PyAny>>,
     field: String,
 ) -> PyResult<()> {
     match expected_fn_option {
@@ -92,13 +92,13 @@ pub fn validate_numpy_serde_config_eq<'py>(
                 panic!("Expected field {field} to be NumpySerdeConfig::DYNAMIC {{..}} but was {actual}");
             };
             validate_fn_eq(
-                actual_preprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
-                expected_preprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
+                &actual_preprocessor_fn.map(|v| v.into_bound(py)),
+                &expected_preprocessor_fn.map(|v| v.into_bound(py)),
                 format!("{field}.preprocessor_fn"),
             )?;
             validate_fn_eq(
-                actual_postprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
-                expected_postprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
+                &actual_postprocessor_fn.map(|v| v.into_bound(py)),
+                &expected_postprocessor_fn.map(|v| v.into_bound(py)),
                 format!("{field}.postprocessor_fn"),
             )?;
         }
@@ -129,13 +129,13 @@ pub fn validate_numpy_serde_config_eq<'py>(
                 expected_shape, actual_shape
             );
             validate_fn_eq(
-                expected_preprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
-                actual_preprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
+                &expected_preprocessor_fn.map(|v| v.into_bound(py)),
+                &actual_preprocessor_fn.map(|v| v.into_bound(py)),
                 format!("{field}.preprocessor_fn"),
             )?;
             validate_fn_eq(
-                expected_postprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
-                actual_postprocessor_fn.map(|v| v.into_bound(py)).as_ref(),
+                &expected_postprocessor_fn.map(|v| v.into_bound(py)),
+                &actual_postprocessor_fn.map(|v| v.into_bound(py)),
                 format!("{field}.postprocessor_fn"),
             )?;
             assert_eq!(
@@ -460,8 +460,8 @@ pub fn validate_pyany_serde_type_eq<'py>(
                 )?;
             }
             validate_fn_eq(
-                Some(&expected_option_choice_fn.into_bound(py)),
-                Some(&actual_option_choice_fn.into_bound(py)),
+                &Some(expected_option_choice_fn.into_bound(py).into_any()),
+                &Some(actual_option_choice_fn.into_bound(py).into_any()),
                 format!("{field}.option_choice_fn"),
             )?;
         }

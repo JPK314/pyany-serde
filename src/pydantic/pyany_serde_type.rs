@@ -318,14 +318,14 @@ pub fn pyany_serde_type_serializer<'py>(
 
 pub fn get_pyany_serde_type_typed_dict_schema<'py>(
     py: Python<'py>,
-    kind: Option<&PyAnySerdeTypeKind>,
+    kind: &Option<PyAnySerdeTypeKind>,
     core_schema: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
     if kind.is_none() {
         return core_schema.call_method(
             "union_schema",
             (PyAnySerdeTypeKind::iter()
-                .map(|k| get_pyany_serde_type_typed_dict_schema(py, Some(&k), core_schema))
+                .map(|k| get_pyany_serde_type_typed_dict_schema(py, &Some(k), core_schema))
                 .collect::<PyResult<Vec<_>>>()?,),
             Some(&PyDict::from_sequence(
                 &[("ref", "pyany_serde_type_schema")].into_pyobject(py)?,
@@ -375,7 +375,7 @@ pub fn get_pyany_serde_type_typed_dict_schema<'py>(
                 "init_strategy",
                 typed_dict_field.call1((get_init_strategy_typed_dict_schema(
                     py,
-                    None,
+                    &None,
                     &core_schema,
                 )?,))?,
             )?;
@@ -424,7 +424,7 @@ pub fn get_pyany_serde_type_typed_dict_schema<'py>(
                 "config",
                 typed_dict_field.call1((get_numpy_serde_config_typed_dict_schema(
                     py,
-                    None,
+                    &None,
                     &core_schema,
                 )?,))?,
             )?;
@@ -487,7 +487,7 @@ impl PyAnySerdeType {
         let pydantic_core = py.import("pydantic_core")?;
         let core_schema = pydantic_core.getattr("core_schema")?;
         let kind = PyAnySerdeTypeKind::from_type_object(cls)?;
-        let base_schema = get_pyany_serde_type_typed_dict_schema(py, kind.as_ref(), &core_schema)?;
+        let base_schema = get_pyany_serde_type_typed_dict_schema(py, &kind, &core_schema)?;
         let is_instance_schema =
             core_schema.call_method1("is_instance_schema", (PyAnySerdeType::type_object(py),))?;
         let json_schema = core_schema.call_method1(

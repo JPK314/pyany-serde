@@ -158,14 +158,14 @@ pub fn numpy_serde_config_serializer<'py>(
 
 pub fn get_numpy_serde_config_typed_dict_schema<'py>(
     py: Python<'py>,
-    kind: Option<&NumpySerdeConfigKind>,
+    kind: &Option<NumpySerdeConfigKind>,
     core_schema: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyAny>> {
     if kind.is_none() {
         return core_schema.call_method1(
             "union_schema",
             (NumpySerdeConfigKind::iter()
-                .map(|k| get_numpy_serde_config_typed_dict_schema(py, Some(&k), core_schema))
+                .map(|k| get_numpy_serde_config_typed_dict_schema(py, &Some(k), core_schema))
                 .collect::<PyResult<Vec<_>>>()?,),
         );
     }
@@ -206,7 +206,7 @@ pub fn get_numpy_serde_config_typed_dict_schema<'py>(
         typed_dict_field.call1((nullable_schema.call1((str_schema.call0()?,))?,))?,
     )?;
 
-    if *kind == NumpySerdeConfigKind::STATIC {
+    if kind == NumpySerdeConfigKind::STATIC {
         typed_dict_fields.set_item(
             "shape",
             typed_dict_field.call1((list_schema.call1((int_schema.call(
@@ -251,8 +251,7 @@ impl NumpySerdeConfig {
         let py = cls.py();
         let core_schema = py.import("pydantic_core")?.getattr("core_schema")?;
         let kind = NumpySerdeConfigKind::from_type_object(cls)?;
-        let base_schema =
-            get_numpy_serde_config_typed_dict_schema(py, kind.as_ref(), &core_schema)?;
+        let base_schema = get_numpy_serde_config_typed_dict_schema(py, &kind, &core_schema)?;
         let is_instance_schema = core_schema.getattr("is_instance_schema")?.call1((cls,))?;
         let json_schema = core_schema.call_method1(
             "chain_schema",

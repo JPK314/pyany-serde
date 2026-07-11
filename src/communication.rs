@@ -95,8 +95,8 @@ pub fn retrieve_bytes(buf: &[u8], offset: usize) -> PyResult<(&[u8], usize)> {
 pub fn append_python_option_bound<'py, F>(
     buf: &mut [u8],
     mut offset: usize,
-    obj_option: &Option<&Bound<'py, PyAny>>,
-    serde_option: &mut Option<&mut Box<dyn PyAnySerde>>,
+    obj_option: &Option<Bound<'py, PyAny>>,
+    serde_option: &mut Option<Box<dyn PyAnySerde>>,
     err: F,
 ) -> PyResult<usize>
 where
@@ -118,8 +118,8 @@ pub fn append_python_option<'py, F>(
     py: Python<'py>,
     buf: &mut [u8],
     mut offset: usize,
-    obj_option: &Option<&Py<PyAny>>,
-    serde_option: &mut Option<&mut Box<dyn PyAnySerde>>,
+    obj_option: &Option<Py<PyAny>>,
+    serde_option: &mut Option<Box<dyn PyAnySerde>>,
     err: F,
 ) -> PyResult<usize>
 where
@@ -141,7 +141,7 @@ pub fn retrieve_python_option<'py, F>(
     py: Python<'py>,
     buf: &mut [u8],
     mut offset: usize,
-    serde_option: &mut Option<&mut Box<dyn PyAnySerde>>,
+    serde_option: &mut Option<Box<dyn PyAnySerde>>,
     err: F,
 ) -> PyResult<(Option<Bound<'py, PyAny>>, usize)>
 where
