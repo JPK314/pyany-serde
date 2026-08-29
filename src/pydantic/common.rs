@@ -12,7 +12,8 @@ impl ValidationContext {
     pub fn from_info<'py>(info: &Bound<'py, PyAny>) -> PyResult<ValidationContext> {
         let validation_context_option = info
             .getattr("context")?
-            .extract::<Option<Bound<'_, ValidationContext>>>()?;
+            .extract::<Bound<'_, ValidationContext>>()
+            .ok();
         let (prompt_for_unpickle, model_field, path) =
             if let Some(validation_context) = validation_context_option {
                 (

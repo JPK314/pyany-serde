@@ -511,3 +511,17 @@ def test_union():
 }}
 """
     validate_model_construction_flows(expected, my_field_dict, model_json)
+
+
+def test_unrelated_pydantic_context():
+    model = MyModel.model_validate(
+        {"my_field": {"type": "string"}},
+        context=object(),
+    )
+    validate_eq(PyAnySerdeType.STRING(), model.my_field, "$")
+
+    model = MyModel.model_validate_json(
+        '{"my_field": {"type": "string"}}',
+        context=object(),
+    )
+    validate_eq(PyAnySerdeType.STRING(), model.my_field, "$")
